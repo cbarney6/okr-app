@@ -145,69 +145,74 @@ export default function CreateSessionModal({ isOpen, onClose, onSuccess }: Creat
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="session-name" className="block text-sm font-medium text-gray-700 mb-1">
               Name *
             </label>
             <input
+              id="session-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g., Q1 2025"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-500 text-gray-900"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="session-description" className="block text-sm font-medium text-gray-700 mb-1">
               Description
             </label>
             <textarea
+              id="session-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Optional description"
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-500 text-gray-900"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 mb-1">
                 Start Date *
               </label>
               <input
+                id="start-date"
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="end-date" className="block text-sm font-medium text-gray-700 mb-1">
                 End Date *
               </label>
               <input
+                id="end-date"
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
                 required
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="parent-session" className="block text-sm font-medium text-gray-700 mb-1">
               Parent Session
             </label>
             <select
+              id="parent-session"
               value={parentSession}
               onChange={(e) => setParentSession(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
             >
-              <option value="" className="text-gray-400">No parent (top-level session)</option>
+              <option value="" className="text-gray-500">No parent (top-level session)</option>
             </select>
           </div>
 
@@ -231,13 +236,14 @@ export default function CreateSessionModal({ isOpen, onClose, onSuccess }: Creat
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="cadence-select" className="block text-sm font-medium text-gray-700 mb-1">
               Cadence
             </label>
             <select
+              id="cadence-select"
               value={cadence}
               onChange={(e) => setCadence(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
             >
               <option value="weekly">Weekly</option>
               <option value="bi-weekly">Bi-weekly</option>
@@ -247,13 +253,14 @@ export default function CreateSessionModal({ isOpen, onClose, onSuccess }: Creat
 
           {(cadence === 'weekly' || cadence === 'bi-weekly') && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="day-of-week" className="block text-sm font-medium text-gray-700 mb-1">
                 Day of Week
               </label>
               <select
+                id="day-of-week"
                 value={cadenceDay}
                 onChange={(e) => setCadenceDay(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
               >
                 <option value="monday">Monday</option>
                 <option value="tuesday">Tuesday</option>
