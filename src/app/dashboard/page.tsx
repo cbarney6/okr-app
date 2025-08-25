@@ -4,7 +4,9 @@ import { redirect } from 'next/navigation'
 import AuthButton from '@/components/auth/AuthButton'
 import SessionsList from '@/components/sessions/SessionsList'
 
-async function getStats(supabase: any, organizationId: string) {
+type SupabaseClient = ReturnType<typeof createServerClient>
+
+async function getStats(supabase: SupabaseClient, organizationId: string) {
   // Get objectives count
   const { data: objectives } = await supabase
     .from('objectives')
