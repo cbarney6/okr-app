@@ -1,110 +1,155 @@
-import { SessionsList } from '@/components/sessions/SessionsList'
-import { createClient } from '@/utils/supabase/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import AuthButton from '@/components/auth/AuthButton'
+import SessionsList from '@/components/sessions/SessionsList'
+
+async function getStats(supabase: any, organizationId: string) {
+  // Get objectives count
+  const { data: objectives } = await supabase
+    .from('objectives')
+    .select('id')
+    .eq('organization_id', organizationId)
+
+  // Get active key results count
+  const { data: keyResults } = await supabase
+    .from('key_results')
+    .select('id')
+    .eq('organization_id', organizationId)
+
+  // Placeholder calculations for now (will be replaced with real data)
+  const completionRate = 85
+  const onTrack = 12
+  const atRisk = 3
+  const overdue = 1
+
+  return {
+    totalObjectives: objectives?.length || 0,
+    activeKeyResults: keyResults?.length || 0,
+    completionRate,
+    onTrack,
+    atRisk,
+    overdue
+  }
+}
 
 export default async function Dashboard() {
-  const supabase = await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+      },
+    }
+  )
+  
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  
+  if (userError || !user) {
     redirect('/')
   }
 
+  // Get user's profile and organization
   const { data: profile } = await supabase
     .from('profiles')
-    .select('*, organizations(*)')
+    .select('organization_id, full_name, avatar_url')
     .eq('id', user.id)
     .single()
 
-  const { data: objectives } = await supabase
-    .from('objectives')
-    .select(`
-      *,
-      key_results (*)
-    `)
-    .order('created_at', { ascending: false })
+  let organizationId = profile?.organization_id
 
-return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
+  // If no organization, create one
+  if (!organizationId) {
+    const { data: orgData } = await supabase
+      .from('organizations')
+      .insert({
+        name: `${user.email?.split('@')[0]}'s Organization`,
+        created_by: user.id
+      })
+      .select()
+      .single()
+
+    if (orgData) {
+      organizationId = orgData.id
+      
+      // Update profile with organization
+      await supabase
+        .from('profiles')
+        .update({ organization_id: organizationId })
+        .eq('id', user.id)
+    }
+  }
+
+  const stats = organizationId ? await getStats(supabase, organizationId) : {
+    totalObjectives: 0,
+    activeKeyResults: 0,
+    completionRate: 0,
+    onTrack: 0,
+    atRisk: 0,
+    overdue: 0
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-3">
+              {/* User Avatar */}
+              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-medium text-sm">
+                {profile?.full_name?.charAt(0) || user.email?.charAt(0)?.toUpperCase()}
+              </div>
+              <span className="text-gray-700 font-medium">
+                {profile?.full_name || user.email?.split('@')[0]}
+              </span>
+            </div>
+            <AuthButton />
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Stats Cards - 6 Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <h3 className="text-sm font-medium text-gray-500 mb-2">Total Objectives</h3>
+            <p className="text-2xl font-semibold text-blue-600">{stats.totalObjectives}</p>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <h3 className="text-sm font-medium text-gray-500 mb-2">Active Key Results</h3>
+            <p className="text-2xl font-semibold text-green-600">{stats.activeKeyResults}</p>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <h3 className="text-sm font-medium text-gray-500 mb-2">Completion Rate</h3>
+            <p className="text-2xl font-semibold text-purple-600">{stats.completionRate}%</p>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <h3 className="text-sm font-medium text-gray-500 mb-2">On Track</h3>
+            <p className="text-2xl font-semibold text-emerald-600">12</p>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <h3 className="text-sm font-medium text-gray-500 mb-2">At Risk</h3>
+            <p className="text-2xl font-semibold text-orange-600">3</p>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <h3 className="text-sm font-medium text-gray-500 mb-2">Overdue</h3>
+            <p className="text-2xl font-semibold text-red-600">1</p>
+          </div>
+        </div>
+
+        {/* Sessions Section */}
+        <div className="bg-white rounded-lg shadow-sm border">
+          <div className="p-6">
             <div className="flex justify-between items-center mb-6">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  Welcome, {profile?.full_name || user.email}
-                </h1>
-                {profile?.organizations && (
-                  <p className="text-gray-600">
-                    Organization: {profile.organizations.name}
-                  </p>
-                )}
-              </div>
-              <AuthButton />
+              <h2 className="text-lg font-semibold text-gray-900">Sessions</h2>
             </div>
-
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="bg-blue-50 p-6 rounded-lg">
-                <h3 className="text-lg font-medium text-blue-900">
-                  Total Objectives
-                </h3>
-                <p className="text-2xl font-bold text-blue-600">
-                  {objectives?.length || 0}
-                </p>
-              </div>
-
-              <div className="bg-green-50 p-6 rounded-lg">
-                <h3 className="text-lg font-medium text-green-900">
-                  Active Key Results
-                </h3>
-                <p className="text-2xl font-bold text-green-600">
-                  {objectives?.reduce((acc, obj) => acc + (obj.key_results?.length || 0), 0) || 0}
-                </p>
-              </div>
-
-              <div className="bg-purple-50 p-6 rounded-lg">
-                <h3 className="text-lg font-medium text-purple-900">
-                  Completion Rate
-                </h3>
-                <p className="text-2xl font-bold text-purple-600">
-                  85%
-                </p>
-              </div>
-            </div>
-
-            {/* Sessions Section */}
-            <div className="mt-8">
-              <SessionsList />
-            </div>
-
-            {objectives && objectives.length > 0 && (
-              <div className="mt-8">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">
-                  Recent Objectives
-                </h2>
-                <div className="space-y-4">
-                  {objectives.slice(0, 3).map((objective) => (
-                    <div key={objective.id} className="border border-gray-200 rounded-lg p-4">
-                      <h3 className="font-medium text-gray-900">{objective.title}</h3>
-                      <p className="text-gray-600 text-sm mt-1">{objective.description}</p>
-                      <div className="mt-2 flex items-center text-sm text-gray-500">
-                        <span>
-                          {new Date(objective.start_date).toLocaleDateString()} - {' '}
-                          {new Date(objective.end_date).toLocaleDateString()}
-                        </span>
-                        <span className="ml-4 px-2 py-1 bg-green-100 text-green-800 rounded-full">
-                          {objective.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <SessionsList />
           </div>
         </div>
       </div>

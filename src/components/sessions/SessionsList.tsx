@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Session } from '@/lib/database.types'
-import { CreateSessionModal } from '@/components/sessions/CreateSessionModal'
+import CreateSessionModal  from '@/components/sessions/CreateSessionModal'
 import { StatusBadge } from '@/components/sessions/StatusBadge'
 import { Plus } from 'lucide-react'
 
@@ -101,11 +101,12 @@ export function SessionsList({ onSessionSelect }: SessionsListProps) {
 
       {showCreateModal && (
         <CreateSessionModal
-          onClose={() => setShowCreateModal(false)}
-          onSessionCreated={handleSessionCreated}
-          existingSessions={sessions}
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={handleSessionCreated}
         />
       )}
     </div>
   )
 }
+export default SessionsList

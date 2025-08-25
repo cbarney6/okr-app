@@ -1,48 +1,40 @@
 'use client'
 
 import { useState } from 'react'
-import { Session } from '@/lib/database.types'
-import { X } from 'lucide-react'
+import { createBrowserClient } from '@supabase/ssr'
 
 interface CreateSessionModalProps {
+  isOpen: boolean
   onClose: () => void
-  onSessionCreated: () => void
-  existingSessions: Session[]
+  onSuccess: () => void
 }
 
-export function CreateSessionModal({ onClose, onSessionCreated, existingSessions }: CreateSessionModalProps) {
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    start_date: '',
-    end_date: '',
-    parent_session_id: '',
-    color: '#3B82F6',
-    cadence: 'weekly',
-    cadence_day: 'monday' // New field for day of week
-  })
+export default function CreateSessionModal({ isOpen, onClose, onSuccess }: CreateSessionModalProps) {
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [parentSession, setParentSession] = useState('')
+  const [color, setColor] = useState('blue')
+  const [cadence, setCadence] = useState('weekly')
+  const [cadenceDay, setCadenceDay] = useState('monday')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const colors = [
-    '#3B82F6', // Blue
-    '#10B981', // Emerald  
-    '#F59E0B', // Amber
-    '#EF4444', // Red
-    '#8B5CF6', // Violet
-    '#06B6D4', // Cyan
-    '#84CC16', // Lime
-    '#F97316'  // Orange
-  ]
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
-  const daysOfWeek = [
-    { value: 'monday', label: 'Monday' },
-    { value: 'tuesday', label: 'Tuesday' },
-    { value: 'wednesday', label: 'Wednesday' },
-    { value: 'thursday', label: 'Thursday' },
-    { value: 'friday', label: 'Friday' },
-    { value: 'saturday', label: 'Saturday' },
-    { value: 'sunday', label: 'Sunday' }
+  const colors = [
+    { name: 'blue', hex: '#3B82F6' },
+    { name: 'green', hex: '#10B981' },
+    { name: 'orange', hex: '#F97316' },
+    { name: 'red', hex: '#EF4444' },
+    { name: 'purple', hex: '#8B5CF6' },
+    { name: 'cyan', hex: '#06B6D4' },
+    { name: 'lime', hex: '#84CC16' },
+    { name: 'amber', hex: '#F59E0B' }
   ]
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,40 +43,105 @@ export function CreateSessionModal({ onClose, onSessionCreated, existingSessions
     setError('')
 
     try {
-      const response = await fetch('/api/sessions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create session')
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) {
+        throw new Error('Authentication required')
       }
 
-      onSessionCreated()
+      // Get or create organization
+      let { data: profile } = await supabase
+        .from('profiles')
+        .select('organization_id')
+        .eq('id', user.id)
+        .single()
+
+      let organizationId = profile?.organization_id
+
+      if (!organizationId) {
+        // Create organization for new user
+        const { data: orgData, error: orgError } = await supabase
+          .from('organizations')
+          .insert({
+            name: `${user.email?.split('@')[0]}'s Organization`,
+            created_by: user.id
+          })
+          .select()
+          .single()
+
+        if (orgError) throw orgError
+        organizationId = orgData.id
+
+        // Update profile with organization
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ organization_id: organizationId })
+          .eq('id', user.id)
+
+        if (profileError) throw profileError
+      }
+
+      // Create session
+      const sessionData = {
+        name,
+        description: description || null,
+        start_date: startDate,
+        end_date: endDate,
+        parent_session_id: parentSession || null,
+        color,
+        cadence,
+        cadence_day: cadence === 'weekly' || cadence === 'bi-weekly' ? cadenceDay : null,
+        status: 'open',
+        organization_id: organizationId,
+        created_by: user.id
+      }
+
+      const { error: sessionError } = await supabase
+        .from('sessions')
+        .insert(sessionData)
+
+      if (sessionError) throw sessionError
+
+      // Reset form
+      setName('')
+      setDescription('')
+      setStartDate('')
+      setEndDate('')
+      setParentSession('')
+      setColor('blue')
+      setCadence('weekly')
+      setCadenceDay('monday')
+
+      onSuccess()
+      onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      console.error('Session creation error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to create session')
     } finally {
       setLoading(false)
     }
   }
 
+  if (!isOpen) return null
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Create New Session</h3>
+          <h2 className="text-xl font-semibold">Create New Session</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-500 hover:text-gray-700 text-xl"
           >
-            <X className="h-5 w-5" />
+            ×
           </button>
         </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -93,11 +150,11 @@ export function CreateSessionModal({ onClose, onSessionCreated, existingSessions
             </label>
             <input
               type="text"
-              required
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               placeholder="e.g., Q1 2025"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400"
+              required
             />
           </div>
 
@@ -106,11 +163,11 @@ export function CreateSessionModal({ onClose, onSessionCreated, existingSessions
               Description
             </label>
             <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
-              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               placeholder="Optional description"
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400"
             />
           </div>
 
@@ -121,10 +178,10 @@ export function CreateSessionModal({ onClose, onSessionCreated, existingSessions
               </label>
               <input
                 type="date"
-                required
-                value={formData.start_date}
-                onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
               />
             </div>
             <div>
@@ -133,10 +190,10 @@ export function CreateSessionModal({ onClose, onSessionCreated, existingSessions
               </label>
               <input
                 type="date"
-                required
-                value={formData.end_date}
-                onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
               />
             </div>
           </div>
@@ -146,16 +203,11 @@ export function CreateSessionModal({ onClose, onSessionCreated, existingSessions
               Parent Session
             </label>
             <select
-              value={formData.parent_session_id}
-              onChange={(e) => setFormData({ ...formData, parent_session_id: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={parentSession}
+              onChange={(e) => setParentSession(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
             >
-              <option value="">No parent (top-level session)</option>
-              {existingSessions.map((session) => (
-                <option key={session.id} value={session.id}>
-                  {session.name}
-                </option>
-              ))}
+              <option value="" className="text-gray-400">No parent (top-level session)</option>
             </select>
           </div>
 
@@ -163,16 +215,16 @@ export function CreateSessionModal({ onClose, onSessionCreated, existingSessions
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Color
             </label>
-            <div className="flex gap-2">
-              {colors.map((color) => (
+            <div className="flex space-x-2">
+              {colors.map((c) => (
                 <button
-                  key={color}
+                  key={c.name}
                   type="button"
-                  onClick={() => setFormData({ ...formData, color })}
-                  className={`w-8 h-8 rounded-full border-2 ${
-                    formData.color === color ? 'border-gray-600' : 'border-gray-300'
+                  onClick={() => setColor(c.name)}
+                  className={`w-8 h-8 rounded-full ${
+                    color === c.name ? 'ring-2 ring-gray-400' : ''
                   }`}
-                  style={{ backgroundColor: color }}
+                  style={{ backgroundColor: c.hex }}
                 />
               ))}
             </div>
@@ -183,53 +235,50 @@ export function CreateSessionModal({ onClose, onSessionCreated, existingSessions
               Cadence
             </label>
             <select
-              value={formData.cadence}
-              onChange={(e) => setFormData({ ...formData, cadence: e.target.value })}
+              value={cadence}
+              onChange={(e) => setCadence(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="weekly">Weekly</option>
-              <option value="every_two_weeks">Every two weeks</option>
+              <option value="bi-weekly">Bi-weekly</option>
               <option value="monthly">Monthly</option>
             </select>
           </div>
 
-          {(formData.cadence === 'weekly' || formData.cadence === 'every_two_weeks') && (
+          {(cadence === 'weekly' || cadence === 'bi-weekly') && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Day of Week
               </label>
               <select
-                value={formData.cadence_day}
-                onChange={(e) => setFormData({ ...formData, cadence_day: e.target.value })}
+                value={cadenceDay}
+                onChange={(e) => setCadenceDay(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                {daysOfWeek.map((day) => (
-                  <option key={day.value} value={day.value}>
-                    {day.label}
-                  </option>
-                ))}
+                <option value="monday">Monday</option>
+                <option value="tuesday">Tuesday</option>
+                <option value="wednesday">Wednesday</option>
+                <option value="thursday">Thursday</option>
+                <option value="friday">Friday</option>
+                <option value="saturday">Saturday</option>
+                <option value="sunday">Sunday</option>
               </select>
             </div>
           )}
 
-          {error && (
-            <div className="text-red-600 text-sm bg-red-50 p-3 rounded-md border border-red-200">
-              {error}
-            </div>
-          )}
-
-          <div className="flex justify-end gap-3 pt-4">
+          <div className="flex space-x-3 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
               disabled={loading}
-              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
             >
               {loading ? 'Creating...' : 'Create Session'}
             </button>
