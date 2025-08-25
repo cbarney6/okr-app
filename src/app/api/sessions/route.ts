@@ -35,19 +35,44 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Get user's organization
-  const { data: profile } = await supabase
+  // Get user's profile and organization
+  let { data: profile } = await supabase
     .from('profiles')
-    .select('organization_id')
+    .select('organization_id, organizations(*)')
     .eq('id', user.id)
     .single()
 
+  // If user has no organization, create one
   if (!profile?.organization_id) {
-    return NextResponse.json({ error: 'No organization found' }, { status: 400 })
+    // Create a default organization for the user
+    const { data: newOrg, error: orgError } = await supabase
+      .from('organizations')
+      .insert({
+        name: `${user.email?.split('@')[0] || 'My'} Organization`,
+        slug: `${user.email?.split('@')[0] || 'my'}-org-${Date.now()}`
+      })
+      .select()
+      .single()
+
+    if (orgError) {
+      return NextResponse.json({ error: 'Failed to create organization: ' + orgError.message }, { status: 500 })
+    }
+
+    // Update user profile with new organization
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({ organization_id: newOrg.id })
+      .eq('id', user.id)
+
+    if (profileError) {
+      return NextResponse.json({ error: 'Failed to update profile: ' + profileError.message }, { status: 500 })
+    }
+
+    profile = { organization_id: newOrg.id, organizations: newOrg }
   }
 
   const body = await request.json()
-  const { name, description, start_date, end_date, parent_session_id, color, cadence } = body
+  const { name, description, start_date, end_date, parent_session_id, color, cadence, cadence_day } = body
 
   const { data: session, error } = await supabase
     .from('sessions')
@@ -59,7 +84,8 @@ export async function POST(request: NextRequest) {
       parent_session_id,
       organization_id: profile.organization_id,
       color: color || '#3B82F6',
-      cadence: cadence || 'weekly'
+      cadence: cadence || 'weekly',
+      cadence_day: cadence_day || 'monday'
     })
     .select()
     .single()

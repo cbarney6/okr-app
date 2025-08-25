@@ -18,7 +18,8 @@ export function CreateSessionModal({ onClose, onSessionCreated, existingSessions
     end_date: '',
     parent_session_id: '',
     color: '#3B82F6',
-    cadence: 'weekly'
+    cadence: 'weekly',
+    cadence_day: 'monday' // New field for day of week
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -32,6 +33,16 @@ export function CreateSessionModal({ onClose, onSessionCreated, existingSessions
     '#06B6D4', // Cyan
     '#84CC16', // Lime
     '#F97316'  // Orange
+  ]
+
+  const daysOfWeek = [
+    { value: 'monday', label: 'Monday' },
+    { value: 'tuesday', label: 'Tuesday' },
+    { value: 'wednesday', label: 'Wednesday' },
+    { value: 'thursday', label: 'Thursday' },
+    { value: 'friday', label: 'Friday' },
+    { value: 'saturday', label: 'Saturday' },
+    { value: 'sunday', label: 'Sunday' }
   ]
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -64,7 +75,7 @@ export function CreateSessionModal({ onClose, onSessionCreated, existingSessions
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold text-gray-900">Create New Session</h3>
           <button
@@ -85,7 +96,7 @@ export function CreateSessionModal({ onClose, onSessionCreated, existingSessions
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
               placeholder="e.g., Q1 2025"
             />
           </div>
@@ -97,7 +108,7 @@ export function CreateSessionModal({ onClose, onSessionCreated, existingSessions
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
               rows={3}
               placeholder="Optional description"
             />
@@ -182,8 +193,29 @@ export function CreateSessionModal({ onClose, onSessionCreated, existingSessions
             </select>
           </div>
 
+          {(formData.cadence === 'weekly' || formData.cadence === 'every_two_weeks') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Day of Week
+              </label>
+              <select
+                value={formData.cadence_day}
+                onChange={(e) => setFormData({ ...formData, cadence_day: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {daysOfWeek.map((day) => (
+                  <option key={day.value} value={day.value}>
+                    {day.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {error && (
-            <div className="text-red-600 text-sm">{error}</div>
+            <div className="text-red-600 text-sm bg-red-50 p-3 rounded-md border border-red-200">
+              {error}
+            </div>
           )}
 
           <div className="flex justify-end gap-3 pt-4">
