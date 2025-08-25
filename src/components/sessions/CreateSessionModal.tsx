@@ -50,7 +50,7 @@ export default function CreateSessionModal({ isOpen, onClose, onSuccess }: Creat
       }
 
       // Get or create organization
-      let { data: profile } = await supabase
+      const { data: profile } = await supabase
         .from('profiles')
         .select('organization_id')
         .eq('id', user.id)
