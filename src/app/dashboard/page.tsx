@@ -1,3 +1,4 @@
+import { SessionsList } from '@/components/sessions/SessionsList'
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import AuthButton from '@/components/auth/AuthButton'
@@ -27,7 +28,7 @@ export default async function Dashboard() {
     `)
     .order('created_at', { ascending: false })
 
-  return (
+return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-white overflow-hidden shadow rounded-lg">
@@ -73,6 +74,11 @@ export default async function Dashboard() {
                   85%
                 </p>
               </div>
+            </div>
+
+            {/* Sessions Section */}
+            <div className="mt-8">
+              <SessionsList />
             </div>
 
             {objectives && objectives.length > 0 && (

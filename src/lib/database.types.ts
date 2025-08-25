@@ -101,6 +101,65 @@ export interface Database {
           unit?: string
         }
       }
+      // ADD THIS NEW SESSIONS TABLE TO YOUR EXISTING DATABASE INTERFACE
+      sessions: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          start_date: string
+          end_date: string
+          parent_session_id: string | null
+          organization_id: string
+          status: 'open' | 'in_progress' | 'archived'
+          color: string
+          cadence: 'weekly' | 'every_two_weeks' | 'monthly'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          name: string
+          description?: string
+          start_date: string
+          end_date: string
+          parent_session_id?: string
+          organization_id: string
+          status?: 'open' | 'in_progress' | 'archived'
+          color?: string
+          cadence?: 'weekly' | 'every_two_weeks' | 'monthly'
+        }
+        Update: {
+          name?: string
+          description?: string
+          start_date?: string
+          end_date?: string
+          parent_session_id?: string
+          status?: 'open' | 'in_progress' | 'archived'
+          color?: string
+          cadence?: 'weekly' | 'every_two_weeks' | 'monthly'
+        }
+      }
     }
   }
+}
+
+// ADD THESE NEW INTERFACES FOR COMPONENT USE
+export interface Session {
+  id: string
+  name: string
+  description?: string
+  start_date: string
+  end_date: string
+  parent_session_id?: string
+  organization_id: string
+  status: 'open' | 'in_progress' | 'archived'
+  color: string
+  cadence: 'weekly' | 'every_two_weeks' | 'monthly'
+  created_at: string
+  updated_at: string
+  parent_session?: {
+    id: string
+    name: string
+  }
+  child_sessions?: { count: number }[]
 }
