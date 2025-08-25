@@ -43,11 +43,11 @@ export default function AuthButton() {
           window.location.href = '/dashboard'
         }
       }
-    } catch (error) {
-      setMessage('An unexpected error occurred')
-    } finally {
-      setLoading(false)
-    }
+      } catch {
+        setMessage('An unexpected error occurred')
+      } finally {
+        setLoading(false)
+      }
   }
 
   const handleSignOut = async () => {
