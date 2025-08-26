@@ -108,10 +108,10 @@ export default async function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50">
       <NavigationSidebar currentPage="dashboard" />
       
-      <div className="flex-1 lg:ml-0">
+      <div className="ml-16 transition-all duration-300">
         {/* Header */}
         <div className="bg-white shadow-sm border-b">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

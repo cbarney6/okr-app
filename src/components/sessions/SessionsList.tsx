@@ -1,27 +1,53 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Session } from '@/lib/database.types'
-import CreateSessionModal  from '@/components/sessions/CreateSessionModal'
-import { StatusBadge } from '@/components/sessions/StatusBadge'
-import { Plus } from 'lucide-react'
+import { createBrowserClient } from '@supabase/ssr'
+import { Plus, Edit, Trash2, Calendar, Clock } from 'lucide-react'
+import CreateSessionModal from './CreateSessionModal'
+import EditSessionModal from './EditSessionModal'
 
-interface SessionsListProps {
-  onSessionSelect?: (session: Session) => void
+interface Session {
+  id: string
+  name: string
+  description?: string
+  start_date: string
+  end_date: string
+  parent_session_id?: string
+  color: string
+  cadence: string
+  cadence_day?: string
+  status: string
+  created_at: string
+  updated_at: string
 }
 
-export function SessionsList({ onSessionSelect }: SessionsListProps) {
+interface SessionsListProps {
+  organizationId?: string
+}
+
+export default function SessionsList({ organizationId }: SessionsListProps) {
   const [sessions, setSessions] = useState<Session[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingSession, setEditingSession] = useState<Session | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
+
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
   const fetchSessions = async () => {
     try {
-      const response = await fetch('/api/sessions')
-      const data = await response.json()
-      if (data.sessions) {
-        setSessions(data.sessions)
-      }
+      setLoading(true)
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setSessions(data || [])
     } catch (error) {
       console.error('Error fetching sessions:', error)
     } finally {
@@ -29,84 +55,221 @@ export function SessionsList({ onSessionSelect }: SessionsListProps) {
     }
   }
 
+  const handleEditSession = (session: Session) => {
+    setEditingSession(session)
+    setShowEditModal(true)
+  }
+
+  const handleDeleteSession = async (sessionId: string) => {
+    try {
+      const { error } = await supabase
+        .from('sessions')
+        .delete()
+        .eq('id', sessionId)
+
+      if (error) throw error
+      
+      setSessions(sessions.filter(session => session.id !== sessionId))
+      setShowDeleteConfirm(null)
+    } catch (error) {
+      console.error('Error deleting session:', error)
+    }
+  }
+
+  const handleSessionCreated = () => {
+    fetchSessions()
+  }
+
+  const handleSessionUpdated = () => {
+    fetchSessions()
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'open': return 'bg-green-100 text-green-800'
+      case 'closed': return 'bg-red-100 text-red-800'
+      case 'on-hold': return 'bg-yellow-100 text-yellow-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    })
+  }
+
   useEffect(() => {
     fetchSessions()
   }, [])
 
-  const handleSessionCreated = () => {
-    fetchSessions()
-    setShowCreateModal(false)
-  }
-
   if (loading) {
-    return <div className="flex justify-center p-8">Loading sessions...</div>
+    return (
+      <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+          <div className="space-y-3">
+            <div className="h-16 bg-gray-200 rounded"></div>
+            <div className="h-16 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Sessions</h2>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          Create Session
-        </button>
-      </div>
-
-      <div className="grid gap-4">
-        {sessions.map((session) => (
-          <div
-            key={session.id}
-            className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
-            onClick={() => onSessionSelect?.(session)}
+    <>
+      <div className="bg-white rounded-lg shadow-sm border">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Sessions</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Manage your OKR sessions and time periods
+            </p>
+          </div>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3">
+            <Plus className="h-4 w-4 mr-2" />
+            Create Session
+          </button>
+        </div>
+
+        <div className="p-6">
+          {sessions.length === 0 ? (
+            <div className="text-center py-8">
+              <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No sessions yet</h3>
+              <p className="text-gray-500 mb-4">Create your first session to start organizing your OKRs.</p>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Create Your First Session
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {sessions.map((session) => (
                 <div
-                  className="w-4 h-4 rounded-full"
-                  style={{ backgroundColor: session.color }}
-                />
-                <h3 className="text-lg font-semibold text-gray-900">{session.name}</h3>
-              </div>
-              <StatusBadge status={session.status} />
-            </div>
-            
-            <p className="text-gray-600 text-sm mb-2">{session.description}</p>
-            
-            <div className="flex items-center justify-between text-sm text-gray-500">
-              <span>
-                {new Date(session.start_date).toLocaleDateString()} - {' '}
-                {new Date(session.end_date).toLocaleDateString()}
-              </span>
-              <span className="capitalize">{session.cadence.replace('_', ' ')}</span>
-            </div>
+                  key={session.id}
+                  className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start space-x-3">
+                      {/* Color indicator */}
+                      <div
+                        className="w-4 h-4 rounded-full mt-1 flex-shrink-0"
+                        style={{ backgroundColor: session.color === 'blue' ? '#3B82F6' : 
+                                               session.color === 'green' ? '#10B981' : 
+                                               session.color === 'orange' ? '#F97316' : 
+                                               session.color === 'red' ? '#EF4444' : 
+                                               session.color === 'purple' ? '#8B5CF6' : 
+                                               session.color === 'cyan' ? '#06B6D4' : 
+                                               session.color === 'lime' ? '#84CC16' : 
+                                               session.color === 'amber' ? '#F59E0B' : '#3B82F6' }}
+                      />
+                      
+                      <div className="flex-1">
+                        <h3 className="text-lg font-medium text-gray-900">{session.name}</h3>
+                        {session.description && (
+                          <p className="text-sm text-gray-600 mt-1">{session.description}</p>
+                        )}
+                        
+                        <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                          <div className="flex items-center space-x-1">
+                            <Calendar className="h-4 w-4" />
+                            <span>{formatDate(session.start_date)} - {formatDate(session.end_date)}</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <Clock className="h-4 w-4" />
+                            <span className="capitalize">{session.cadence}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
-            {session.parent_session && (
-              <div className="mt-2 text-xs text-gray-400">
-                Parent: {session.parent_session.name}
-              </div>
-            )}
-          </div>
-        ))}
-
-        {sessions.length === 0 && (
-          <div className="text-center py-12 text-gray-500">
-            <p className="text-lg mb-2">No sessions yet</p>
-            <p className="text-sm">Create your first session to get started with OKRs</p>
-          </div>
-        )}
+                    <div className="flex items-start space-x-2">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(session.status)}`}>
+                        {session.status === 'open' ? 'Open' : 
+                         session.status === 'closed' ? 'Closed' : 
+                         session.status === 'on-hold' ? 'On Hold' : session.status}
+                      </span>
+                      
+                      <div className="flex space-x-1">
+                        <button
+                          onClick={() => handleEditSession(session)}
+                          className="p-1 text-gray-400 hover:text-blue-600 rounded"
+                          title="Edit session"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => setShowDeleteConfirm(session.id)}
+                          className="p-1 text-gray-400 hover:text-red-600 rounded"
+                          title="Delete session"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
-      {showCreateModal && (
-        <CreateSessionModal
+      {/* Create Session Modal */}
+      <CreateSessionModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSuccess={handleSessionCreated}
+      />
+
+      {/* Edit Session Modal */}
+      {editingSession && (
+        <EditSessionModal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false)
+            setEditingSession(null)
+          }}
+          onSuccess={handleSessionUpdated}
+          session={editingSession}
         />
       )}
-    </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Delete Session</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Are you sure you want to delete this session? This action cannot be undone.
+            </p>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteSession(showDeleteConfirm)}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
-export default SessionsList
