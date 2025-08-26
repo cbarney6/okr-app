@@ -95,7 +95,11 @@ export default function SessionsList({ organizationId }: SessionsListProps) {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    const date = new Date(dateString)
+    // Fix timezone offset to display the actual date without conversion
+    date.setMinutes(date.getMinutes() + date.getTimezoneOffset())
+  
+    return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric'
