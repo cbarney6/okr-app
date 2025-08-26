@@ -26,6 +26,13 @@ export default function CreateSessionModal({ isOpen, onClose, onSuccess }: Creat
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
+  // Fix timezone offset issue with HTML date inputs
+  const adjustDateForTimezone = (dateString: string) => {
+    if (!dateString) return dateString
+    const date = new Date(dateString + 'T00:00:00')
+    return date.toISOString().split('T')[0]
+  }
+
   const colors = [
     { name: 'blue', hex: '#3B82F6' },
     { name: 'green', hex: '#10B981' },
@@ -82,12 +89,12 @@ export default function CreateSessionModal({ isOpen, onClose, onSuccess }: Creat
         if (profileError) throw profileError
       }
 
-      // Create session
+      // Create session with timezone-adjusted dates
       const sessionData = {
         name,
         description: description || null,
-        start_date: startDate,
-        end_date: endDate,
+        start_date: adjustDateForTimezone(startDate),
+        end_date: adjustDateForTimezone(endDate),
         parent_session_id: parentSession || null,
         color,
         cadence,

@@ -175,7 +175,12 @@ export default function SessionsList({ organizationId }: SessionsListProps) {
                       />
                       
                       <div className="flex-1">
-                        <h3 className="text-lg font-medium text-gray-900">{session.name}</h3>
+                        <button
+                          onClick={() => window.location.href = `/okrs?session=${session.id}`}
+                          className="text-left hover:text-blue-600 transition-colors"
+                        >
+                          <h3 className="text-lg font-medium text-gray-900 hover:text-blue-600">{session.name}</h3>
+                        </button>
                         {session.description && (
                           <p className="text-sm text-gray-600 mt-1">{session.description}</p>
                         )}
@@ -195,26 +200,45 @@ export default function SessionsList({ organizationId }: SessionsListProps) {
 
                     <div className="flex items-start space-x-2">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(session.status)}`}>
-                        {session.status === 'open' ? 'Open' : 
-                         session.status === 'closed' ? 'Closed' : 
-                         session.status === 'on-hold' ? 'On Hold' : session.status}
+                        {session.status === 'open' ? 'OPEN' : 
+                         session.status === 'in-progress' ? 'IN PROGRESS' :
+                         session.status === 'closed' ? 'CLOSED' : 
+                         session.status === 'archived' ? 'ARCHIVED' : 
+                         session.status === 'on-hold' ? 'ON HOLD' : session.status.toUpperCase()}
                       </span>
                       
-                      <div className="flex space-x-1">
+                      <div className="relative">
                         <button
-                          onClick={() => handleEditSession(session)}
-                          className="p-1 text-gray-400 hover:text-blue-600 rounded"
-                          title="Edit session"
+                          onClick={() => setShowDeleteConfirm(showDeleteConfirm === session.id ? null : session.id)}
+                          className="p-1 text-gray-400 hover:text-gray-600 rounded"
+                          title="More options"
                         >
-                          <Edit className="h-4 w-4" />
+                          <span className="text-lg font-bold">⋯</span>
                         </button>
-                        <button
-                          onClick={() => setShowDeleteConfirm(session.id)}
-                          className="p-1 text-gray-400 hover:text-red-600 rounded"
-                          title="Delete session"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        
+                        {showDeleteConfirm === session.id && (
+                          <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-md shadow-lg z-10 min-w-32">
+                            <button
+                              onClick={() => {
+                                handleEditSession(session)
+                                setShowDeleteConfirm(null)
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+                            >
+                              <Edit className="h-4 w-4" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowDeleteConfirm(session.id)
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50 flex items-center space-x-2"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

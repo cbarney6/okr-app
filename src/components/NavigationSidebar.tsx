@@ -52,6 +52,7 @@ export default function NavigationSidebar({ currentPage = 'dashboard' }: Navigat
             <Link
               key={item.id}
               href={item.href}
+              prefetch={item.id === 'dashboard'}
               className={`flex items-center px-3 py-2 text-sm rounded-md transition-colors duration-200 group ${
                 isActive
                   ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'

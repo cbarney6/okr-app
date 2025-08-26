@@ -42,6 +42,19 @@ export default function EditSessionModal({ isOpen, onClose, onSuccess, session }
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
+  // Fix timezone offset issue with HTML date inputs
+  const adjustDateForTimezone = (dateString: string) => {
+    if (!dateString) return dateString
+    const date = new Date(dateString + 'T00:00:00')
+    return date.toISOString().split('T')[0]
+  }
+
+  // Convert database date back to input format
+  const formatDateForInput = (dateString: string) => {
+    if (!dateString) return ''
+    return dateString.split('T')[0]
+  }
+
   const colors = [
     { name: 'blue', hex: '#3B82F6' },
     { name: 'green', hex: '#10B981' },
@@ -55,7 +68,9 @@ export default function EditSessionModal({ isOpen, onClose, onSuccess, session }
 
   const statuses = [
     { value: 'open', label: 'Open' },
+    { value: 'in-progress', label: 'In Progress' },
     { value: 'closed', label: 'Closed' },
+    { value: 'archived', label: 'Archived' },
     { value: 'on-hold', label: 'On Hold' }
   ]
 
@@ -64,8 +79,8 @@ export default function EditSessionModal({ isOpen, onClose, onSuccess, session }
     if (isOpen && session) {
       setName(session.name)
       setDescription(session.description || '')
-      setStartDate(session.start_date)
-      setEndDate(session.end_date)
+      setStartDate(formatDateForInput(session.start_date))
+      setEndDate(formatDateForInput(session.end_date))
       setParentSession(session.parent_session_id || '')
       setColor(session.color)
       setCadence(session.cadence)
@@ -83,8 +98,8 @@ export default function EditSessionModal({ isOpen, onClose, onSuccess, session }
       const sessionData = {
         name,
         description: description || null,
-        start_date: startDate,
-        end_date: endDate,
+        start_date: adjustDateForTimezone(startDate),
+        end_date: adjustDateForTimezone(endDate),
         parent_session_id: parentSession || null,
         color,
         cadence,
