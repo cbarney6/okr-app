@@ -31,6 +31,7 @@ export default function SessionsList({ organizationId }: SessionsListProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingSession, setEditingSession] = useState<Session | null>(null)
+  const [showDropdown, setShowDropdown] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
 
   const supabase = createBrowserClient(
@@ -209,19 +210,19 @@ export default function SessionsList({ organizationId }: SessionsListProps) {
                       
                       <div className="relative">
                         <button
-                          onClick={() => setShowDeleteConfirm(showDeleteConfirm === session.id ? null : session.id)}
+                          onClick={() => setShowDropdown(showDropdown === session.id ? null : session.id)}
                           className="p-1 text-gray-400 hover:text-gray-600 rounded"
                           title="More options"
                         >
                           <span className="text-lg font-bold">⋯</span>
                         </button>
                         
-                        {showDeleteConfirm === session.id && (
+                        {showDropdown === session.id && (
                           <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-md shadow-lg z-10 min-w-32">
                             <button
                               onClick={() => {
                                 handleEditSession(session)
-                                setShowDeleteConfirm(null)
+                                setShowDropdown(null)
                               }}
                               className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
                             >
@@ -230,6 +231,7 @@ export default function SessionsList({ organizationId }: SessionsListProps) {
                             </button>
                             <button
                               onClick={() => {
+                                setShowDropdown(null)
                                 setShowDeleteConfirm(session.id)
                               }}
                               className="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50 flex items-center space-x-2"
