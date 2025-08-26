@@ -33,6 +33,15 @@ export default function CreateSessionModal({ isOpen, onClose, onSuccess }: Creat
     return date.toISOString().split('T')[0]
   }
 
+  // Generate unique slug using crypto API for guaranteed uniqueness
+  const generateUniqueSlug = (email: string) => {
+    const baseSlug = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '')
+    const randomBytes = new Uint8Array(4)
+    crypto.getRandomValues(randomBytes)
+    const randomSuffix = Array.from(randomBytes, byte => byte.toString(36)).join('')
+    return `${baseSlug}-${randomSuffix}`
+  }
+
   const colors = [
     { name: 'blue', hex: '#3B82F6' },
     { name: 'green', hex: '#10B981' },
@@ -66,12 +75,12 @@ export default function CreateSessionModal({ isOpen, onClose, onSuccess }: Creat
       let organizationId = profile?.organization_id
 
       if (!organizationId) {
-        // Create organization for new user
+        // Create organization for new user with unique slug
         const { data: orgData, error: orgError } = await supabase
           .from('organizations')
           .insert({
             name: `${user.email?.split('@')[0]}'s Organization`,
-            slug: user.email?.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || 'org',
+            slug: generateUniqueSlug(user.email || 'user'),
             created_by: user.id
           })
           .select()
