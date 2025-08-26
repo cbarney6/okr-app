@@ -1,29 +1,13 @@
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import UsersRolesPage from '@/components/admin/UsersRolesPage'
 
 export default async function UsersPage() {
-  // Check authentication and admin status
-  const cookieStore = await cookies()
-  
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-      },
-    }
-  )
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: { user }, error } = await supabase.auth.getUser()
-
-  // Redirect to login if not authenticated
-  if (error || !user) {
-    redirect('/login')
+  if (!user) {
+    redirect('/auth')
   }
 
   // Check if user has admin role
@@ -33,9 +17,7 @@ export default async function UsersPage() {
     .eq('id', user.id)
     .single()
 
-  const isAdmin = profile?.roles?.includes('admin')
+  const hasAdminRole = profile?.roles?.includes('admin') || false
 
-  // Allow access to users page for all authenticated users
-  // The component will handle admin-only actions internally
   return <UsersRolesPage />
 }
