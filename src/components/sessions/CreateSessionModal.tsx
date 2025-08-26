@@ -1,7 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
+
+interface Session {
+  id: string
+  name: string
+  start_date: string
+  end_date: string
+}
 
 interface CreateSessionModalProps {
   isOpen: boolean
@@ -20,11 +27,42 @@ export default function CreateSessionModal({ isOpen, onClose, onSuccess }: Creat
   const [cadenceDay, setCadenceDay] = useState('monday')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [availableSessions, setAvailableSessions] = useState<Session[]>([])
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
+
+  // Format date for dropdown option display
+  const formatDateForOption = (dateString: string) => {
+    const date = new Date(dateString)
+    date.setMinutes(date.getMinutes() + date.getTimezoneOffset())
+    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+  }
+
+  // Fetch available parent sessions
+  const fetchAvailableSessions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('id, name, start_date, end_date')
+        .in('status', ['open', 'in-progress']) // Only show active sessions
+        .order('start_date', { ascending: false })
+
+      if (error) throw error
+      setAvailableSessions(data || [])
+    } catch (error) {
+      console.error('Error fetching sessions:', error)
+    }
+  }
+
+  // Fetch sessions when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchAvailableSessions()
+    }
+  }, [isOpen])
 
   // Fix timezone offset issue with HTML date inputs
   const adjustDateForTimezone = (dateString: string) => {
@@ -230,6 +268,11 @@ export default function CreateSessionModal({ isOpen, onClose, onSuccess }: Creat
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
             >
               <option value="" className="text-gray-500">No parent (top-level session)</option>
+              {availableSessions.map((session) => (
+                <option key={session.id} value={session.id} className="text-gray-900">
+                  {session.name} ({formatDateForOption(session.start_date)} - {formatDateForOption(session.end_date)})
+                </option>
+              ))}
             </select>
           </div>
 
