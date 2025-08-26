@@ -103,40 +103,7 @@ export default function CreateSessionModal({ isOpen, onClose, onSuccess }: Creat
         throw new Error('Authentication required')
       }
 
-      // Get or create organization
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('organization_id')
-        .eq('id', user.id)
-        .single()
-
-      let organizationId = profile?.organization_id
-
-      if (!organizationId) {
-        // Create organization for new user with unique slug
-        const { data: orgData, error: orgError } = await supabase
-          .from('organizations')
-          .insert({
-            name: `${user.email?.split('@')[0]}'s Organization`,
-            slug: generateUniqueSlug(user.email || 'user'),
-            created_by: user.id
-          })
-          .select()
-          .single()
-
-        if (orgError) throw orgError
-        organizationId = orgData.id
-
-        // Update profile with organization
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({ organization_id: organizationId })
-          .eq('id', user.id)
-
-        if (profileError) throw profileError
-      }
-
-      // Create session with timezone-adjusted dates
+      // Create session - RLS policies will automatically use user's organization
       const sessionData = {
         name,
         description: description || null,
@@ -147,7 +114,6 @@ export default function CreateSessionModal({ isOpen, onClose, onSuccess }: Creat
         cadence,
         cadence_day: cadence === 'weekly' || cadence === 'bi-weekly' ? cadenceDay : null,
         status: 'open',
-        organization_id: organizationId,
         created_by: user.id
       }
 
