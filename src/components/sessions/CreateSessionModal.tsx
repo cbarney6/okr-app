@@ -31,9 +31,9 @@ export default function CreateSessionModal({
     end_date: '',
     parent_session_id: '',
     color: '#3B82F6',
-    cadence: 'Weekly',
-    cadence_day: 'Monday',
-    status: 'Open'
+    cadence: 'weekly',
+    cadence_day: 'monday',
+    status: 'open'
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -55,7 +55,6 @@ export default function CreateSessionModal({
     setError('')
 
     try {
-      // Get current user's organization ID
       const organizationId = await getCurrentUserOrgId()
       if (!organizationId) {
         setError('Unable to get organization information')
@@ -66,7 +65,7 @@ export default function CreateSessionModal({
         ...formData,
         organization_id: organizationId,
         parent_session_id: formData.parent_session_id || null,
-        status: formData.status as 'Open' | 'In Progress' | 'Archived'
+        status: formData.status as 'open' | 'in_progress' | 'archived'
       }
 
       const { error: createError } = await supabase
@@ -212,10 +211,9 @@ export default function CreateSessionModal({
                 onChange={(e) => setFormData({ ...formData, cadence: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
               >
-                <option value="Weekly">Weekly</option>
-                <option value="Bi-weekly">Bi-weekly</option>
-                <option value="Monthly">Monthly</option>
-                <option value="Quarterly">Quarterly</option>
+                <option value="weekly">Weekly</option>
+                <option value="every_two_weeks">Every Two Weeks</option>
+                <option value="monthly">Monthly</option>
               </select>
             </div>
 
@@ -228,13 +226,13 @@ export default function CreateSessionModal({
                 onChange={(e) => setFormData({ ...formData, cadence_day: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
               >
-                <option value="Monday">Monday</option>
-                <option value="Tuesday">Tuesday</option>
-                <option value="Wednesday">Wednesday</option>
-                <option value="Thursday">Thursday</option>
-                <option value="Friday">Friday</option>
-                <option value="Saturday">Saturday</option>
-                <option value="Sunday">Sunday</option>
+                <option value="monday">Monday</option>
+                <option value="tuesday">Tuesday</option>
+                <option value="wednesday">Wednesday</option>
+                <option value="thursday">Thursday</option>
+                <option value="friday">Friday</option>
+                <option value="saturday">Saturday</option>
+                <option value="sunday">Sunday</option>
               </select>
             </div>
           </div>
