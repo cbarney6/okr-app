@@ -4,6 +4,13 @@ import { useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { X } from 'lucide-react'
 
+interface Session {
+  id: string
+  name: string
+  start_date: string
+  end_date: string
+}
+
 interface CreateSessionModalProps {
   isOpen: boolean
   onClose: () => void
@@ -30,7 +37,7 @@ export default function CreateSessionModal({
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [availableSessions, setAvailableSessions] = useState<any[]>([])
+  const [availableSessions] = useState<Session[]>([])
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

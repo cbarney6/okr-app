@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
-import { Plus, MoreHorizontal, Edit, Trash2 } from 'lucide-react'
+import { Plus, MoreHorizontal } from 'lucide-react'
 import CreateSessionModal from '@/components/sessions/CreateSessionModal'
 import EditSessionModal from '@/components/sessions/EditSessionModal'
 import AuthenticatedLayout from '@/components/layout/AuthenticatedLayout'
@@ -246,26 +246,6 @@ export default function SessionsTimelinePage() {
       setStatusEditModal({ session: {} as Session, isOpen: false })
     } catch (error) {
       console.error('Session update error:', error)
-    }
-  }
-
-  const handleDeleteSession = async (sessionId: string) => {
-    if (!confirm('Are you sure you want to delete this session?')) return
-
-    try {
-      const { error } = await supabase
-        .from('sessions')
-        .delete()
-        .eq('id', sessionId)
-
-      if (error) {
-        console.error('Error deleting session:', error)
-        return
-      }
-
-      await fetchSessions()
-    } catch (error) {
-      console.error('Error deleting session:', error)
     }
   }
 
