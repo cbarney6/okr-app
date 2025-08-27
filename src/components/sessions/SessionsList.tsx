@@ -56,6 +56,19 @@ export default function SessionsList({ }: SessionsListProps) {
     }
   }, [supabase])
 
+  const getCurrentUserOrgId = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return null
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .eq('id', user.id)
+      .single()
+
+    return profile?.organization_id || null
+  }, [supabase])
+
   const handleEditSession = (session: Session) => {
     setEditingSession(session)
     setShowEditModal(true)
@@ -87,9 +100,9 @@ export default function SessionsList({ }: SessionsListProps) {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'open': return 'bg-green-100 text-green-800'
-      case 'closed': return 'bg-red-100 text-red-800'
-      case 'on-hold': return 'bg-yellow-100 text-yellow-800'
+      case 'Open': return 'bg-gray-100 text-gray-800'
+      case 'In Progress': return 'bg-green-100 text-green-800'
+      case 'Archived': return 'bg-red-100 text-red-800'
       default: return 'bg-gray-100 text-gray-800'
     }
   }
@@ -205,11 +218,10 @@ export default function SessionsList({ }: SessionsListProps) {
 
                     <div className="flex items-start space-x-2">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(session.status)}`}>
-                        {session.status === 'open' ? 'OPEN' : 
-                         session.status === 'in-progress' ? 'IN PROGRESS' :
-                         session.status === 'closed' ? 'CLOSED' : 
-                         session.status === 'archived' ? 'ARCHIVED' : 
-                         session.status === 'on-hold' ? 'ON HOLD' : session.status.toUpperCase()}
+                        {session.status === 'Open' ? 'OPEN' : 
+                         session.status === 'In Progress' ? 'IN PROGRESS' :
+                         session.status === 'Archived' ? 'ARCHIVED' : 
+                         session.status.toUpperCase()}
                       </span>
                       
                       <div className="relative">
@@ -260,6 +272,7 @@ export default function SessionsList({ }: SessionsListProps) {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSuccess={handleSessionCreated}
+        getCurrentUserOrgId={getCurrentUserOrgId}
       />
 
       {/* Edit Session Modal */}

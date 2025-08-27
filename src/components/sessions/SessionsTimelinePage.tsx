@@ -17,184 +17,173 @@ interface Session {
   color: string
   cadence: string
   cadence_day?: string
-  status: string
+  status: 'Open' | 'In Progress' | 'Archived'
+  organization_id: string
   created_at: string
   updated_at: string
 }
 
 interface SessionGroup {
-  year: number
-  parentSessions: SessionWithChildren[]
-}
-
-interface SessionWithChildren extends Session {
-  children: Session[]
+  parentSession: Session
+  childSessions: Session[]
 }
 
 export default function SessionsTimelinePage() {
   const [sessions, setSessions] = useState<Session[]>([])
-  const [sessionGroups, setSessionGroups] = useState<SessionGroup[]>([])
   const [loading, setLoading] = useState(true)
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [editingSession, setEditingSession] = useState<Session | null>(null)
-  const [showDropdown, setShowDropdown] = useState<string | null>(null)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
-  const [showStatusModal, setShowStatusModal] = useState<string | null>(null)
   const [currentUserRoles, setCurrentUserRoles] = useState<string[]>([])
   const [isMobile, setIsMobile] = useState(false)
-  const [leftPanelWidth, setLeftPanelWidth] = useState(300) // For resizable panel
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [editingSession, setEditingSession] = useState<Session | null>(null)
+  const [leftPanelWidth, setLeftPanelWidth] = useState(300) // Draggable width
+  const [isResizing, setIsResizing] = useState(false)
+  const [statusEditModal, setStatusEditModal] = useState<{session: Session, isOpen: boolean}>({ 
+    session: {} as Session, 
+    isOpen: false 
+  })
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  const isAdmin = currentUserRoles.includes('admin')
-
-  // Check if mobile
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768)
-    }
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
-  }, [])
-
   const fetchSessions = useCallback(async () => {
     try {
-      setLoading(true)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('organization_id, roles')
+        .eq('id', user.id)
+        .single()
+
+      if (!profile?.organization_id) return
+
       const { data, error } = await supabase
         .from('sessions')
         .select('*')
-        .order('start_date', { ascending: true })
+        .eq('organization_id', profile.organization_id)
+        .order('start_date', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('Error fetching sessions:', error)
+        return
+      }
+
       setSessions(data || [])
-      organizeSessionsIntoGroups(data || [])
+      setCurrentUserRoles(profile.roles || [])
     } catch (error) {
-      console.error('Error fetching sessions:', error)
+      console.error('Error in fetchSessions:', error)
     } finally {
       setLoading(false)
     }
   }, [supabase])
 
-  const getCurrentUserRoles = useCallback(async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('roles')
-          .eq('id', user.id)
-          .single()
+  const getCurrentUserOrgId = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return null
 
-        if (error) throw error
-        setCurrentUserRoles(data?.roles || [])
-      }
-    } catch (error) {
-      console.error('Error fetching current user roles:', error)
-    }
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .eq('id', user.id)
+      .single()
+
+    return profile?.organization_id || null
   }, [supabase])
+
+  useEffect(() => {
+    fetchSessions()
+  }, [fetchSessions])
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768)
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+
+    checkMobile()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsResizing(true)
+  }
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return
+      const newWidth = e.clientX
+      if (newWidth >= 200 && newWidth <= 500) {
+        setLeftPanelWidth(newWidth)
+      }
+    }
+
+    const handleMouseUp = () => setIsResizing(false)
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isResizing])
 
   const organizeSessionsIntoGroups = (sessions: Session[]) => {
     const parentSessions = sessions.filter(s => !s.parent_session_id)
     const childSessions = sessions.filter(s => s.parent_session_id)
 
-    const sessionsWithChildren: SessionWithChildren[] = parentSessions.map(parent => ({
-      ...parent,
-      children: childSessions
+    // Sort parent sessions by start_date (newest first)
+    parentSessions.sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())
+
+    const groups: SessionGroup[] = parentSessions.map(parent => {
+      // Get child sessions for this parent and sort by start_date (ascending)
+      const children = childSessions
         .filter(child => child.parent_session_id === parent.id)
         .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
-    }))
 
-    const groups: SessionGroup[] = sessionsWithChildren.map(session => ({
-      year: new Date(session.start_date).getFullYear(),
-      parentSessions: [session]
-    }))
-
-    groups.sort((a, b) => {
-      const dateA = new Date(a.parentSessions[0].start_date)
-      const dateB = new Date(b.parentSessions[0].start_date)
-      return dateB.getTime() - dateA.getTime()
+      return {
+        parentSession: parent,
+        childSessions: children
+      }
     })
 
-    setSessionGroups(groups)
+    return groups
   }
 
-  const handleEditSession = (session: Session) => {
-    setEditingSession(session)
-    setShowEditModal(true)
-    setShowDropdown(null)
-  }
+  const sessionGroups = organizeSessionsIntoGroups(sessions)
 
-  const handleDeleteSession = async (sessionId: string) => {
-    try {
-      const { error } = await supabase
-        .from('sessions')
-        .delete()
-        .eq('id', sessionId)
-
-      if (error) throw error
-      
-      fetchSessions()
-      setShowDeleteConfirm(null)
-    } catch (error) {
-      console.error('Error deleting session:', error)
-    }
-  }
-
-  const handleStatusChange = async (sessionId: string, newStatus: string) => {
-    try {
-      const { error } = await supabase
-        .from('sessions')
-        .update({ status: newStatus })
-        .eq('id', sessionId)
-
-      if (error) throw error
-      
-      fetchSessions()
-      setShowStatusModal(null)
-    } catch (error) {
-      console.error('Error updating session status:', error)
-    }
-  }
-
-  const getStatusBadgeColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'open': return 'bg-gray-100 text-gray-800'
-      case 'in progress': case 'in-progress': return 'bg-green-100 text-green-800'
-      case 'archived': return 'bg-red-100 text-red-800'
-      default: return 'bg-gray-100 text-gray-800'
-    }
-  }
-
-  const getSessionColor = (colorName: string) => {
-    const colors: Record<string, string> = {
-      blue: '#3B82F6',
-      green: '#10B981',
-      orange: '#F97316',
-      red: '#EF4444',
-      purple: '#8B5CF6',
-      cyan: '#06B6D4',
-      lime: '#84CC16',
-      amber: '#F59E0B'
-    }
-    return colors[colorName] || '#3B82F6'
-  }
-
-  const formatDateRange = (startDate: string, endDate: string) => {
-    const start = new Date(startDate)
-    const end = new Date(endDate)
+  const generateMonthHeaders = (sessionStart: Date, sessionEnd: Date) => {
+    const headers = []
+    const current = new Date(sessionStart)
+    current.setDate(1) // Start from first day of start month
     
-    start.setMinutes(start.getMinutes() + start.getTimezoneOffset())
-    end.setMinutes(end.getMinutes() + end.getTimezoneOffset())
-    
-    const startMonth = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    const endMonth = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    
-    return `${startMonth} - ${endMonth}`
+    const yearChangeIndices = []
+    let currentYear = current.getFullYear()
+    let monthIndex = 0
+
+    while (current <= sessionEnd) {
+      // Check if year changed
+      if (current.getFullYear() !== currentYear) {
+        yearChangeIndices.push(monthIndex)
+        currentYear = current.getFullYear()
+      }
+
+      headers.push({
+        month: current.toLocaleDateString('en-US', { month: 'short' }),
+        year: current.getFullYear(),
+        isYearStart: current.getMonth() === 0 || monthIndex === 0
+      })
+
+      current.setMonth(current.getMonth() + 1)
+      monthIndex++
+    }
+
+    return { headers, yearChangeIndices }
   }
 
   const calculateSessionPosition = (startDate: string, endDate: string, sessionStart: Date, sessionEnd: Date) => {
@@ -203,335 +192,260 @@ export default function SessionsTimelinePage() {
     
     start.setMinutes(start.getMinutes() + start.getTimezoneOffset())
     end.setMinutes(end.getMinutes() + end.getTimezoneOffset())
-    
+    sessionStart.setMinutes(sessionStart.getMinutes() + sessionStart.getTimezoneOffset())
+    sessionEnd.setMinutes(sessionEnd.getMinutes() + sessionEnd.getTimezoneOffset())
+
     const totalDays = (sessionEnd.getTime() - sessionStart.getTime()) / (1000 * 60 * 60 * 24)
-    const startDays = (start.getTime() - sessionStart.getTime()) / (1000 * 60 * 60 * 24)
-    const duration = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
-    
-    const leftPercent = Math.max(0, (startDays / totalDays) * 100)
-    const widthPercent = Math.min(100 - leftPercent, (duration / totalDays) * 100)
-    
-    return { left: `${leftPercent}%`, width: `${widthPercent}%` }
+    const startOffset = Math.max(0, (start.getTime() - sessionStart.getTime()) / (1000 * 60 * 60 * 24))
+    const sessionDuration = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
+
+    const leftPercent = (startOffset / totalDays) * 100
+    const widthPercent = (sessionDuration / totalDays) * 100
+
+    return { leftPercent, widthPercent }
   }
 
-  const generateMonthHeaders = (sessionStart: Date, sessionEnd: Date) => {
-    const headers = []
-    const current = new Date(sessionStart)
-    current.setDate(1)
-    
-    let currentYear = current.getFullYear()
-    const yearChangeIndices = []
-    
-    while (current <= sessionEnd) {
-      const monthName = current.toLocaleDateString('en-US', { month: 'short' })
-      const year = current.getFullYear()
-      
-      if (year !== currentYear || headers.length === 0) {
-        yearChangeIndices.push({ index: headers.length, year: year })
-        currentYear = year
-      }
-      
-      headers.push({
-        month: monthName,
-        year: year,
-        showYear: year !== currentYear || monthName === 'Jan'
-      })
-      
-      current.setMonth(current.getMonth() + 1)
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Open': return 'bg-gray-100 text-gray-800'
+      case 'In Progress': return 'bg-green-100 text-green-800'
+      case 'Archived': return 'bg-red-100 text-red-800'
+      default: return 'bg-gray-100 text-gray-800'
     }
-    
-    return { headers, yearChangeIndices }
   }
 
-  const getCurrentDatePosition = (sessionStart: Date, sessionEnd: Date) => {
+  const getStatusBgColor = (status: string) => {
+    switch (status) {
+      case 'Open': return 'bg-gray-50'
+      case 'In Progress': return 'bg-green-50'
+      case 'Archived': return 'bg-red-50'
+      default: return 'bg-gray-50'
+    }
+  }
+
+  const handleStatusClick = (session: Session) => {
+    if (currentUserRoles.includes('admin')) {
+      setStatusEditModal({ session, isOpen: true })
+    }
+  }
+
+  const handleStatusUpdate = async (newStatus: 'Open' | 'In Progress' | 'Archived') => {
+    try {
+      const { error } = await supabase
+        .from('sessions')
+        .update({ status: newStatus })
+        .eq('id', statusEditModal.session.id)
+
+      if (error) {
+        console.error('Error updating session status:', error)
+        return
+      }
+
+      // Refresh sessions
+      await fetchSessions()
+      setStatusEditModal({ session: {} as Session, isOpen: false })
+    } catch (error) {
+      console.error('Session update error:', error)
+    }
+  }
+
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!confirm('Are you sure you want to delete this session?')) return
+
+    try {
+      const { error } = await supabase
+        .from('sessions')
+        .delete()
+        .eq('id', sessionId)
+
+      if (error) {
+        console.error('Error deleting session:', error)
+        return
+      }
+
+      await fetchSessions()
+    } catch (error) {
+      console.error('Error deleting session:', error)
+    }
+  }
+
+  const renderCurrentDateIndicator = (sessionStart: Date, sessionEnd: Date) => {
     const now = new Date()
+    if (now < sessionStart || now > sessionEnd) return null
+
     const totalDays = (sessionEnd.getTime() - sessionStart.getTime()) / (1000 * 60 * 60 * 24)
-    const currentDays = (now.getTime() - sessionStart.getTime()) / (1000 * 60 * 60 * 24)
-    
-    if (currentDays < 0 || currentDays > totalDays) return null
-    
-    return (currentDays / totalDays) * 100
+    const currentOffset = (now.getTime() - sessionStart.getTime()) / (1000 * 60 * 60 * 24)
+    const position = (currentOffset / totalDays) * 100
+
+    return (
+      <div 
+        className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 flex items-start justify-center"
+        style={{ left: `${position}%` }}
+      >
+        <div className="w-3 h-3 bg-red-500 rounded-full -mt-1.5"></div>
+      </div>
+    )
   }
 
   const renderTimelineView = () => {
     return (
-      <div className="flex h-full">
-        {/* Left Resizable Panel */}
-        <div 
-          className="bg-white border-r border-gray-200 flex-shrink-0" 
-          style={{ width: leftPanelWidth }}
-        >
-          <div className="p-4 border-b border-gray-200">
-            <h3 className="font-semibold text-gray-900">Sessions</h3>
-          </div>
-          
-          <div className="overflow-y-auto">
-            {sessionGroups.map((group, groupIndex) => {
-              const parentSession = group.parentSessions[0]
-              return (
-                <div key={`${parentSession.id}-${groupIndex}`} className="border-b border-gray-100">
-                  <div className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-2">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: getSessionColor(parentSession.color) }}
-                        />
-                        <span className="font-medium text-gray-900 truncate">
-                          {parentSession.name}
-                        </span>
-                      </div>
-                      
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => setShowStatusModal(showStatusModal === parentSession.id ? null : parentSession.id)}
-                          className={`px-2 py-1 text-xs font-medium rounded-full cursor-pointer hover:opacity-80 ${getStatusBadgeColor(parentSession.status)}`}
-                        >
-                          {parentSession.status.toUpperCase()}
-                        </button>
-                        
-                        <div className="relative">
-                          <button
-                            onClick={() => setShowDropdown(showDropdown === parentSession.id ? null : parentSession.id)}
-                            className="p-1 text-gray-400 hover:text-gray-600 rounded"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
-                          
-                          {showDropdown === parentSession.id && (
-                            <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-md shadow-lg z-10 min-w-32">
-                              <button
-                                onClick={() => handleEditSession(parentSession)}
-                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
-                              >
-                                <Edit className="h-4 w-4" />
-                                <span>Edit</span>
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setShowDropdown(null)
-                                  setShowDeleteConfirm(parentSession.id)
-                                }}
-                                className="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50 flex items-center space-x-2"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                <span>Delete</span>
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+      <div className="space-y-8">
+        {sessionGroups.map((group, groupIndex) => {
+          const parentSession = group.parentSession
+          const sessionStart = new Date(parentSession.start_date)
+          const sessionEnd = new Date(parentSession.end_date)
+          const { headers } = generateMonthHeaders(sessionStart, sessionEnd)
+
+          return (
+            <div key={groupIndex} className={`border rounded-lg ${getStatusBgColor(parentSession.status)}`}>
+              {/* Timeline Header */}
+              <div className="relative">
+                {/* Year Label - Centered above timeline */}
+                <div className="text-center py-2 border-b border-gray-200">
+                  <h3 className="text-base font-medium text-gray-900">
+                    {sessionStart.getFullYear()}
+                    {sessionStart.getFullYear() !== sessionEnd.getFullYear() && 
+                      ` - ${sessionEnd.getFullYear()}`
+                    }
+                  </h3>
+                </div>
+
+                {/* Month Headers */}
+                <div className="flex border-b border-gray-200 bg-gray-50">
+                  {headers.map((header, index) => (
+                    <div 
+                      key={index} 
+                      className="flex-1 px-2 py-2 text-xs text-center text-gray-600 border-r border-gray-200 last:border-r-0"
+                    >
+                      {header.month}
                     </div>
-                    
-                    <p className="text-xs text-gray-500 mb-2">
-                      {formatDateRange(parentSession.start_date, parentSession.end_date)}
-                    </p>
-                    
-                    {parentSession.children.map(child => (
-                      <div key={child.id} className="ml-4 mb-2 text-sm">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <div
-                              className="w-2 h-2 rounded-full"
-                              style={{ backgroundColor: getSessionColor(child.color) }}
-                            />
-                            <span className="text-gray-700 truncate">{child.name}</span>
-                          </div>
-                          
-                          <button
-                            onClick={() => setShowStatusModal(showStatusModal === child.id ? null : child.id)}
-                            className={`px-1 py-0.5 text-xs rounded-full cursor-pointer hover:opacity-80 ${getStatusBadgeColor(child.status)}`}
-                          >
-                            {child.status.toUpperCase()}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                  ))}
+                </div>
+
+                {/* Current Date Indicator */}
+                {renderCurrentDateIndicator(sessionStart, sessionEnd)}
+              </div>
+
+              {/* Timeline Content */}
+              <div className="p-4">
+                {/* Parent Session */}
+                <div className="flex items-center mb-4">
+                  <div className="w-4 h-4 rounded" style={{ backgroundColor: parentSession.color }}></div>
+                  <span className="ml-3 font-medium text-gray-900">{parentSession.name}</span>
+                  <span 
+                    className={`ml-2 px-2 py-1 text-xs font-medium rounded-full cursor-pointer ${getStatusColor(parentSession.status)}`}
+                    onClick={() => handleStatusClick(parentSession)}
+                  >
+                    {parentSession.status}
+                  </span>
+                  
+                  {/* Dropdown Menu */}
+                  <div className="relative ml-auto">
+                    <button 
+                      className="p-1 rounded-md hover:bg-gray-100"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        // Toggle dropdown logic here
+                      }}
+                    >
+                      <MoreHorizontal className="h-4 w-4 text-gray-400" />
+                    </button>
                   </div>
                 </div>
-              )
-            })}
-          </div>
-        </div>
 
-        {/* Resize Handle */}
-        <div
-          className="w-1 bg-gray-200 cursor-col-resize hover:bg-gray-400 transition-colors"
-          onMouseDown={(e) => {
-            const startX = e.clientX
-            const startWidth = leftPanelWidth
-            
-            const handleMouseMove = (e: MouseEvent) => {
-              const newWidth = startWidth + (e.clientX - startX)
-              setLeftPanelWidth(Math.max(250, Math.min(600, newWidth)))
-            }
-            
-            const handleMouseUp = () => {
-              document.removeEventListener('mousemove', handleMouseMove)
-              document.removeEventListener('mouseup', handleMouseUp)
-            }
-            
-            document.addEventListener('mousemove', handleMouseMove)
-            document.addEventListener('mouseup', handleMouseUp)
-          }}
-        />
+                {/* Parent Timeline Bar */}
+                <div className="relative h-8 bg-white border rounded mb-4">
+                  <div
+                    className="absolute top-0 bottom-0 rounded flex items-center justify-center text-white text-sm font-medium"
+                    style={{ 
+                      left: '0%', 
+                      width: '100%',
+                      backgroundColor: parentSession.color 
+                    }}
+                  >
+                    {`${new Date(parentSession.start_date).toLocaleDateString()} - ${new Date(parentSession.end_date).toLocaleDateString()}`}
+                  </div>
+                </div>
 
-        {/* Right Timeline Area */}
-        <div className="flex-1 bg-white overflow-x-auto">
-          <div className="p-6">
-            {sessionGroups.map((group, groupIndex) => {
-              const parentSession = group.parentSessions[0]
-              const sessionStart = new Date(parentSession.start_date)
-              const sessionEnd = new Date(parentSession.end_date)
-              
-              sessionStart.setMinutes(sessionStart.getMinutes() + sessionStart.getTimezoneOffset())
-              sessionEnd.setMinutes(sessionEnd.getMinutes() + sessionEnd.getTimezoneOffset())
-              
-              const { headers, yearChangeIndices } = generateMonthHeaders(sessionStart, sessionEnd)
-              const currentDatePos = getCurrentDatePosition(sessionStart, sessionEnd)
-              
-              return (
-                <div key={`${parentSession.id}-${groupIndex}`} className="mb-8 border border-gray-200 rounded-lg p-4">
-                  {/* Year labels positioned above timeline */}
-                  <div className="relative mb-2 h-6">
-                    {yearChangeIndices.map(({ index, year }) => (
-                      <div
-                        key={`${year}-${index}`}
-                        className="absolute text-sm font-semibold text-gray-600"
-                        style={{
-                          left: `${(index / Math.max(headers.length - 1, 1)) * 100}%`,
-                          transform: 'translateX(-50%)'
-                        }}
-                      >
-                        {year}
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {/* Month headers */}
-                  <div className="grid gap-2 mb-4 text-xs text-gray-500" style={{
-                    gridTemplateColumns: `repeat(${headers.length}, 1fr)`
-                  }}>
-                    {headers.map((header, index) => (
-                      <div key={`${header.month}-${header.year}-${index}`} className="text-center font-medium">
-                        {header.month}
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {/* Timeline */}
-                  <div className="relative">
-                    {/* Current Date Indicator */}
-                    {currentDatePos !== null && (
-                      <div
-                        className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-20"
-                        style={{ left: `${currentDatePos}%` }}
-                      >
-                        <div className="absolute -top-1 -left-1.5 w-3 h-3 bg-red-500 rounded-full"></div>
-                      </div>
-                    )}
-                    
-                    {/* Parent Session Bar */}
-                    <div className="relative h-8 bg-gray-100 rounded mb-4">
-                      <div
-                        className="absolute h-full rounded shadow-sm flex items-center justify-center text-white text-xs font-medium"
-                        style={{
-                          backgroundColor: getSessionColor(parentSession.color),
-                          left: '0%',
-                          width: '100%'
-                        }}
-                      >
-                        <span className="truncate px-2">
-                          {formatDateRange(parentSession.start_date, parentSession.end_date)}
+                {/* Child Sessions */}
+                {group.childSessions.map((childSession) => {
+                  const position = calculateSessionPosition(
+                    childSession.start_date,
+                    childSession.end_date,
+                    sessionStart,
+                    sessionEnd
+                  )
+
+                  return (
+                    <div key={childSession.id} className="ml-6 mb-3">
+                      <div className="flex items-center mb-2">
+                        <div className="w-3 h-3 rounded" style={{ backgroundColor: childSession.color }}></div>
+                        <span className="ml-3 text-sm text-gray-700">{childSession.name}</span>
+                        <span 
+                          className={`ml-2 px-2 py-1 text-xs font-medium rounded-full cursor-pointer ${getStatusColor(childSession.status)}`}
+                          onClick={() => handleStatusClick(childSession)}
+                        >
+                          {childSession.status}
                         </span>
-                      </div>
-                    </div>
-                    
-                    {/* Child Sessions */}
-                    <div className="space-y-2">
-                      {parentSession.children.map(child => (
-                        <div key={child.id} className="relative h-6 bg-gray-50 rounded">
-                          <div
-                            className="absolute h-full rounded shadow-sm flex items-center justify-center text-white text-xs font-medium"
-                            style={{
-                              backgroundColor: getSessionColor(child.color),
-                              ...calculateSessionPosition(child.start_date, child.end_date, sessionStart, sessionEnd)
+                        
+                        {/* Child Session Dropdown */}
+                        <div className="relative ml-auto">
+                          <button 
+                            className="p-1 rounded-md hover:bg-gray-100"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              // Toggle dropdown logic here
                             }}
                           >
-                            <span className="truncate px-2">
-                              {formatDateRange(child.start_date, child.end_date)}
-                            </span>
-                          </div>
+                            <MoreHorizontal className="h-4 w-4 text-gray-400" />
+                          </button>
                         </div>
-                      ))}
+                      </div>
+                      
+                      <div className="relative h-6 bg-white border rounded">
+                        <div
+                          className="absolute top-0 bottom-0 rounded flex items-center justify-center text-white text-xs font-medium"
+                          style={{ 
+                            left: `${position.leftPercent}%`, 
+                            width: `${position.widthPercent}%`,
+                            backgroundColor: childSession.color 
+                          }}
+                        >
+                          {`${new Date(childSession.start_date).toLocaleDateString()} - ${new Date(childSession.end_date).toLocaleDateString()}`}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
       </div>
     )
   }
 
   const renderMobileView = () => {
-    const allSessions = sessions.sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())
-    
     return (
       <div className="space-y-4">
-        {allSessions.map(session => (
-          <div key={session.id} className="bg-white border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center space-x-2 mb-2">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: getSessionColor(session.color) }}
-                  />
-                  <h3 className="font-medium text-gray-900">{session.name}</h3>
-                  <button
-                    onClick={() => setShowStatusModal(showStatusModal === session.id ? null : session.id)}
-                    className={`px-2 py-1 text-xs font-medium rounded-full cursor-pointer hover:opacity-80 ${getStatusBadgeColor(session.status)}`}
-                  >
-                    {session.status.toUpperCase()}
-                  </button>
-                </div>
-                <p className="text-sm text-gray-600">
-                  {formatDateRange(session.start_date, session.end_date)}
-                </p>
+        {sessions.map((session) => (
+          <div key={session.id} className={`p-4 border rounded-lg ${getStatusBgColor(session.status)}`}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center">
+                <div className="w-3 h-3 rounded mr-2" style={{ backgroundColor: session.color }}></div>
+                <span className="font-medium text-gray-900">{session.name}</span>
               </div>
-              
-              <div className="relative">
-                <button
-                  onClick={() => setShowDropdown(showDropdown === session.id ? null : session.id)}
-                  className="p-1 text-gray-400 hover:text-gray-600 rounded"
-                >
-                  <MoreHorizontal className="h-4 w-4" />
+              <div className="flex items-center space-x-2">
+                <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(session.status)}`}>
+                  {session.status}
+                </span>
+                <button className="p-1 rounded-md hover:bg-gray-100">
+                  <MoreHorizontal className="h-4 w-4 text-gray-400" />
                 </button>
-                
-                {showDropdown === session.id && (
-                  <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-md shadow-lg z-10 min-w-32">
-                    <button
-                      onClick={() => handleEditSession(session)}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
-                    >
-                      <Edit className="h-4 w-4" />
-                      <span>Edit</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowDropdown(null)
-                        setShowDeleteConfirm(session.id)
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50 flex items-center space-x-2"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span>Delete</span>
-                    </button>
-                  </div>
-                )}
               </div>
+            </div>
+            <div className="text-sm text-gray-600">
+              {new Date(session.start_date).toLocaleDateString()} - {new Date(session.end_date).toLocaleDateString()}
             </div>
           </div>
         ))}
@@ -539,139 +453,152 @@ export default function SessionsTimelinePage() {
     )
   }
 
-  useEffect(() => {
-    fetchSessions()
-    getCurrentUserRoles()
-  }, [fetchSessions, getCurrentUserRoles])
-
-  if (loading) {
-    return (
-      <AuthenticatedLayout pageTitle="Sessions">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-gray-200 rounded w-48"></div>
-          <div className="bg-white rounded-lg p-6 space-y-4">
-            <div className="h-4 bg-gray-200 rounded w-24"></div>
-            <div className="h-16 bg-gray-200 rounded"></div>
-          </div>
-        </div>
-      </AuthenticatedLayout>
-    )
-  }
-
   return (
     <AuthenticatedLayout pageTitle="Sessions">
-      <div className="h-full">
+      <div className="p-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <p className="text-gray-600">Manage your OKR sessions and time periods</p>
-          
+        <div className="mb-6 flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Sessions</h1>
+            <p className="text-gray-600">Manage your OKR sessions and time periods</p>
+          </div>
           <button
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onClick={() => setIsCreateModalOpen(true)}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
           >
             <Plus className="h-4 w-4 mr-2" />
             Create Session
           </button>
         </div>
 
-        {/* Content */}
-        {sessions.length === 0 ? (
-          <div className="bg-white rounded-lg p-12 text-center">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Plus className="h-8 w-8 text-gray-400" />
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No sessions yet</h3>
-            <p className="text-gray-500 mb-6">Create your first session to start organizing your OKRs.</p>
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="text-gray-500">Loading sessions...</div>
+          </div>
+        ) : sessions.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-gray-500 mb-4">No sessions found</div>
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => setIsCreateModalOpen(true)}
               className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
             >
               <Plus className="h-4 w-4 mr-2" />
               Create Your First Session
             </button>
           </div>
+        ) : isMobile ? (
+          renderMobileView()
         ) : (
-          <div className="bg-white rounded-lg border border-gray-200 h-full">
-            {isMobile ? renderMobileView() : renderTimelineView()}
+          <div className="flex">
+            {/* Left Panel with Sessions List */}
+            <div 
+              className="border-r border-gray-200 bg-white"
+              style={{ width: `${leftPanelWidth}px` }}
+            >
+              <div className="p-4">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Sessions</h2>
+                <div className="space-y-2">
+                  {sessionGroups.map((group) => (
+                    <div key={group.parentSession.id}>
+                      {/* Parent Session */}
+                      <div className="flex items-center p-2 rounded-md hover:bg-gray-50">
+                        <div 
+                          className="w-3 h-3 rounded mr-3" 
+                          style={{ backgroundColor: group.parentSession.color }}
+                        ></div>
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900">{group.parentSession.name}</div>
+                        </div>
+                        <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(group.parentSession.status)}`}>
+                          {group.parentSession.status}
+                        </span>
+                      </div>
+                      
+                      {/* Child Sessions */}
+                      {group.childSessions.map((child) => (
+                        <div key={child.id} className="flex items-center p-2 ml-6 rounded-md hover:bg-gray-50">
+                          <div 
+                            className="w-2 h-2 rounded mr-3" 
+                            style={{ backgroundColor: child.color }}
+                          ></div>
+                          <div className="flex-1">
+                            <div className="text-sm text-gray-700">{child.name}</div>
+                          </div>
+                          <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(child.status)}`}>
+                            {child.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Resize Handle */}
+            <div 
+              className="w-1 bg-gray-200 hover:bg-blue-400 cursor-col-resize"
+              onMouseDown={handleMouseDown}
+            ></div>
+
+            {/* Right Panel with Timeline */}
+            <div className="flex-1 p-4">
+              {renderTimelineView()}
+            </div>
           </div>
         )}
 
-        {/* Status Change Modal */}
-        {showStatusModal && isAdmin && (
+        {/* Status Edit Modal */}
+        {statusEditModal.isOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-4 max-w-sm w-full mx-4">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Change Status</h3>
-              <div className="space-y-2">
-                {['open', 'in progress', 'archived'].map((status) => (
+            <div className="bg-white rounded-lg p-6 w-96 max-w-90vw">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Change Status</h3>
+              <div className="space-y-3">
+                {(['Open', 'In Progress', 'Archived'] as const).map((status) => (
                   <button
                     key={status}
-                    onClick={() => handleStatusChange(showStatusModal, status)}
-                    className="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-100"
+                    className="w-full text-left p-3 rounded-md border border-gray-200 hover:bg-gray-50 text-gray-900"
+                    onClick={() => handleStatusUpdate(status)}
                   >
-                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                    {status}
                   </button>
                 ))}
               </div>
-              <button
-                onClick={() => setShowStatusModal(null)}
-                className="mt-4 w-full px-3 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50"
-              >
-                Cancel
-              </button>
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => setStatusEditModal({ session: {} as Session, isOpen: false })}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         )}
 
         {/* Modals */}
-        <CreateSessionModal
-          isOpen={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
-          onSuccess={() => {
-            fetchSessions()
-            setShowCreateModal(false)
-          }}
-        />
+        {isCreateModalOpen && (
+          <CreateSessionModal
+            isOpen={isCreateModalOpen}
+            onClose={() => setIsCreateModalOpen(false)}
+            onSuccess={() => {
+              fetchSessions()
+              setIsCreateModalOpen(false)
+            }}
+            getCurrentUserOrgId={getCurrentUserOrgId}
+          />
+        )}
 
         {editingSession && (
           <EditSessionModal
-            isOpen={showEditModal}
-            onClose={() => {
-              setShowEditModal(false)
-              setEditingSession(null)
-            }}
+            isOpen={!!editingSession}
+            onClose={() => setEditingSession(null)}
             onSuccess={() => {
               fetchSessions()
-              setShowEditModal(false)
               setEditingSession(null)
             }}
             session={editingSession}
           />
-        )}
-
-        {/* Delete Confirmation Modal */}
-        {showDeleteConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Delete Session</h3>
-              <p className="text-sm text-gray-600 mb-4">
-                Are you sure you want to delete this session? This action cannot be undone.
-              </p>
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowDeleteConfirm(null)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleDeleteSession(showDeleteConfirm)}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
         )}
       </div>
     </AuthenticatedLayout>

@@ -1,85 +1,45 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
-
-interface Session {
-  id: string
-  name: string
-  start_date: string
-  end_date: string
-}
+import { X } from 'lucide-react'
 
 interface CreateSessionModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
+  getCurrentUserOrgId: () => Promise<string | null>
 }
 
-export default function CreateSessionModal({ isOpen, onClose, onSuccess }: CreateSessionModalProps) {
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
-  const [parentSession, setParentSession] = useState('')
-  const [color, setColor] = useState('blue')
-  const [cadence, setCadence] = useState('weekly')
-  const [cadenceDay, setCadenceDay] = useState('monday')
+export default function CreateSessionModal({ 
+  isOpen, 
+  onClose, 
+  onSuccess,
+  getCurrentUserOrgId 
+}: CreateSessionModalProps) {
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    start_date: '',
+    end_date: '',
+    parent_session_id: '',
+    color: '#3B82F6',
+    cadence: 'Weekly',
+    cadence_day: 'Monday',
+    status: 'Open'
+  })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [availableSessions, setAvailableSessions] = useState<Session[]>([])
+  const [availableSessions, setAvailableSessions] = useState<any[]>([])
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  // Format date for dropdown option display
-  const formatDateForOption = (dateString: string) => {
-    const date = new Date(dateString)
-    date.setMinutes(date.getMinutes() + date.getTimezoneOffset())
-    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-  }
-
-  // Fetch available parent sessions
-  const fetchAvailableSessions = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('sessions')
-        .select('id, name, start_date, end_date')
-        .in('status', ['open', 'in-progress']) // Only show active sessions
-        .order('start_date', { ascending: false })
-
-      if (error) throw error
-      setAvailableSessions(data || [])
-    } catch (error) {
-      console.error('Error fetching sessions:', error)
-    }
-  }, [supabase])
-
-  // Fetch sessions when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      fetchAvailableSessions()
-    }
-  }, [isOpen, fetchAvailableSessions])
-
-  // Fix timezone offset issue with HTML date inputs
-  const adjustDateForTimezone = (dateString: string) => {
-    if (!dateString) return dateString
-    const date = new Date(dateString + 'T00:00:00')
-    return date.toISOString().split('T')[0]
-  }
-
-  const colors = [
-    { name: 'blue', hex: '#3B82F6' },
-    { name: 'green', hex: '#10B981' },
-    { name: 'orange', hex: '#F97316' },
-    { name: 'red', hex: '#EF4444' },
-    { name: 'purple', hex: '#8B5CF6' },
-    { name: 'cyan', hex: '#06B6D4' },
-    { name: 'lime', hex: '#84CC16' },
-    { name: 'amber', hex: '#F59E0B' }
+  const colorOptions = [
+    '#3B82F6', '#10B981', '#F59E0B', '#EF4444', 
+    '#8B5CF6', '#06B6D4', '#84CC16', '#F97316'
   ]
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -88,47 +48,34 @@ export default function CreateSessionModal({ isOpen, onClose, onSuccess }: Creat
     setError('')
 
     try {
-      // Get current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      if (userError || !user) {
-        throw new Error('Authentication required')
+      // Get current user's organization ID
+      const organizationId = await getCurrentUserOrgId()
+      if (!organizationId) {
+        setError('Unable to get organization information')
+        return
       }
 
-      // Create session - RLS policies will automatically use user's organization
       const sessionData = {
-        name,
-        description: description || null,
-        start_date: adjustDateForTimezone(startDate),
-        end_date: adjustDateForTimezone(endDate),
-        parent_session_id: parentSession || null,
-        color,
-        cadence,
-        cadence_day: cadence === 'weekly' || cadence === 'bi-weekly' ? cadenceDay : null,
-        status: 'open',
-        created_by: user.id
+        ...formData,
+        organization_id: organizationId,
+        parent_session_id: formData.parent_session_id || null,
+        status: formData.status as 'Open' | 'In Progress' | 'Archived'
       }
 
-      const { error: sessionError } = await supabase
+      const { error: createError } = await supabase
         .from('sessions')
-        .insert(sessionData)
+        .insert([sessionData])
 
-      if (sessionError) throw sessionError
-
-      // Reset form
-      setName('')
-      setDescription('')
-      setStartDate('')
-      setEndDate('')
-      setParentSession('')
-      setColor('blue')
-      setCadence('weekly')
-      setCadenceDay('monday')
+      if (createError) {
+        console.error('Session creation error:', createError)
+        setError('Failed to create session')
+        return
+      }
 
       onSuccess()
-      onClose()
-    } catch (err) {
-      console.error('Session creation error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to create session')
+    } catch (error) {
+      console.error('Error creating session:', error)
+      setError('Failed to create session')
     } finally {
       setLoading(false)
     }
@@ -138,171 +85,165 @@ export default function CreateSessionModal({ isOpen, onClose, onSuccess }: Creat
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-gray-900" style={{ color: '#111827', fontWeight: '700' }}>Create New Session</h2>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900">Create New Session</h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-xl"
+            className="text-gray-400 hover:text-gray-600 transition-colors"
           >
-            ×
+            <X className="h-6 w-6" />
           </button>
         </div>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="session-name" className="block text-sm font-medium text-gray-700 mb-1">
-              Name *
-            </label>
-            <input
-              id="session-name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., Q1 2025"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-500 text-gray-900"
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="session-description" className="block text-sm font-medium text-gray-700 mb-1">
-              Description
-            </label>
-            <textarea
-              id="session-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Optional description"
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-500 text-gray-900"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 mb-1">
-                Start Date *
-              </label>
-              <input
-                id="start-date"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                required
-              />
-            </div>
-            <div>
-              <label htmlFor="end-date" className="block text-sm font-medium text-gray-700 mb-1">
-                End Date *
-              </label>
-              <input
-                id="end-date"
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="parent-session" className="block text-sm font-medium text-gray-700 mb-1">
-              Parent Session
-            </label>
-            <select
-              id="parent-session"
-              value={parentSession}
-              onChange={(e) => setParentSession(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-            >
-              <option value="" className="text-gray-500">No parent (top-level session)</option>
-              {availableSessions.map((session) => (
-                <option key={session.id} value={session.id} className="text-gray-900">
-                  {session.name} ({formatDateForOption(session.start_date)} - {formatDateForOption(session.end_date)})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Color
-            </label>
-            <div className="flex space-x-2">
-              {colors.map((c) => (
-                <button
-                  key={c.name}
-                  type="button"
-                  onClick={() => setColor(c.name)}
-                  className={`w-8 h-8 rounded-full ${
-                    color === c.name ? 'ring-2 ring-gray-400' : ''
-                  }`}
-                  style={{ backgroundColor: c.hex }}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="cadence-select" className="block text-sm font-medium text-gray-700 mb-1">
-              Cadence
-            </label>
-            <select
-              id="cadence-select"
-              value={cadence}
-              onChange={(e) => setCadence(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-            >
-              <option value="weekly">Weekly</option>
-              <option value="bi-weekly">Bi-weekly</option>
-              <option value="monthly">Monthly</option>
-            </select>
-          </div>
-
-          {(cadence === 'weekly' || cadence === 'bi-weekly') && (
-            <div>
-              <label htmlFor="day-of-week" className="block text-sm font-medium text-gray-700 mb-1">
-                Day of Week
-              </label>
-              <select
-                id="day-of-week"
-                value={cadenceDay}
-                onChange={(e) => setCadenceDay(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-              >
-                <option value="monday">Monday</option>
-                <option value="tuesday">Tuesday</option>
-                <option value="wednesday">Wednesday</option>
-                <option value="thursday">Thursday</option>
-                <option value="friday">Friday</option>
-                <option value="saturday">Saturday</option>
-                <option value="sunday">Sunday</option>
-              </select>
+        <form onSubmit={handleSubmit} className="p-6">
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded-md text-red-700 text-sm">
+              {error}
             </div>
           )}
 
-          <div className="flex space-x-3 pt-4">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Name *
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                placeholder="Session name"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description
+              </label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                placeholder="Optional description"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Start Date *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={formData.start_date}
+                  onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  End Date *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={formData.end_date}
+                  onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Parent Session
+              </label>
+              <select
+                value={formData.parent_session_id}
+                onChange={(e) => setFormData({ ...formData, parent_session_id: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+              >
+                <option value="">No parent (top-level session)</option>
+                {availableSessions.map((session) => (
+                  <option key={session.id} value={session.id}>
+                    {session.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Color
+              </label>
+              <div className="flex space-x-2">
+                {colorOptions.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, color })}
+                    className={`w-8 h-8 rounded-full border-2 transition-all ${
+                      formData.color === color ? 'border-gray-400 scale-110' : 'border-gray-200'
+                    }`}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Cadence
+              </label>
+              <select
+                value={formData.cadence}
+                onChange={(e) => setFormData({ ...formData, cadence: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+              >
+                <option value="Weekly">Weekly</option>
+                <option value="Bi-weekly">Bi-weekly</option>
+                <option value="Monthly">Monthly</option>
+                <option value="Quarterly">Quarterly</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Day of Week
+              </label>
+              <select
+                value={formData.cadence_day}
+                onChange={(e) => setFormData({ ...formData, cadence_day: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+              >
+                <option value="Monday">Monday</option>
+                <option value="Tuesday">Tuesday</option>
+                <option value="Wednesday">Wednesday</option>
+                <option value="Thursday">Thursday</option>
+                <option value="Friday">Friday</option>
+                <option value="Saturday">Saturday</option>
+                <option value="Sunday">Sunday</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-3 mt-6">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-              disabled={loading}
+              className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
               disabled={loading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? 'Creating...' : 'Create Session'}
             </button>
