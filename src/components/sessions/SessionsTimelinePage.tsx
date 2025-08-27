@@ -47,8 +47,6 @@ export default function SessionsTimelinePage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  const isAdmin = currentUserRoles.includes('admin')
-
   // Check if mobile
   useEffect(() => {
     const checkMobile = () => {
@@ -205,7 +203,7 @@ export default function SessionsTimelinePage() {
     current.setDate(1) // Start from first day of start month
     
     let currentYear = current.getFullYear()
-    let yearChangeIndices = []
+    const yearChangeIndices = []
     
     while (current <= sessionEnd) {
       const monthName = current.toLocaleDateString('en-US', { month: 'short' })
