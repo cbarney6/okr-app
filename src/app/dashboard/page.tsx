@@ -102,7 +102,7 @@ export default function DashboardPage() {
         .from('sessions')
         .select('*')
         .eq('organization_id', profile.organization_id)
-        .eq('status', 'in-progress')
+        .eq('status', 'in_progress')
         .order('start_date', { ascending: false })
         .limit(1)
 

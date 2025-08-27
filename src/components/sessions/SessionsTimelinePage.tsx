@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
-import { Plus, MoreHorizontal, List, Calendar as CalendarIcon } from 'lucide-react'
+import { Plus, MoreHorizontal, List, Calendar as CalendarIcon, Edit, Trash2 } from 'lucide-react'
 import CreateSessionModal from '@/components/sessions/CreateSessionModal'
 import EditSessionModal from '@/components/sessions/EditSessionModal'
 import AuthenticatedLayout from '@/components/layout/AuthenticatedLayout'
@@ -35,8 +35,6 @@ export default function SessionsTimelinePage() {
   const [isMobile, setIsMobile] = useState(false)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [editingSession, setEditingSession] = useState<Session | null>(null)
-  const [leftPanelWidth, setLeftPanelWidth] = useState(300)
-  const [isResizing, setIsResizing] = useState(false)
   const [viewMode, setViewMode] = useState<'timeline' | 'list'>('timeline')
   const [statusEditModal, setStatusEditModal] = useState<{session: Session, isOpen: boolean}>({ 
     session: {} as Session, 
@@ -108,34 +106,7 @@ export default function SessionsTimelinePage() {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault()
-    setIsResizing(true)
-  }
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return
-      const newWidth = e.clientX
-      if (newWidth >= 200 && newWidth <= 500) {
-        setLeftPanelWidth(newWidth)
-      }
-    }
-
-    const handleMouseUp = () => setIsResizing(false)
-
-    if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove)
-      document.addEventListener('mouseup', handleMouseUp)
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [isResizing])
-
-  // Fix timezone offset for date display
+  // Fix timezone offset for date display - this was your previous successful fix
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     date.setMinutes(date.getMinutes() + date.getTimezoneOffset())
@@ -151,7 +122,8 @@ export default function SessionsTimelinePage() {
     const parentSessions = sessions.filter(s => !s.parent_session_id)
     const childSessions = sessions.filter(s => s.parent_session_id)
 
-    parentSessions.sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())
+    // Sort parent sessions by start_date (future dates at bottom)
+    parentSessions.sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
 
     const groups: SessionGroup[] = parentSessions.map(parent => {
       const children = childSessions
@@ -289,7 +261,7 @@ export default function SessionsTimelinePage() {
 
     return (
       <div 
-        className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 flex items-start justify-center"
+        className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-30 flex items-start justify-center"
         style={{ left: `${position}%` }}
       >
         <div className="w-3 h-3 bg-red-500 rounded-full -mt-1.5"></div>
@@ -307,15 +279,15 @@ export default function SessionsTimelinePage() {
             const sessionEnd = new Date(parentSession.end_date)
             const headers = generateMonthHeaders(sessionStart, sessionEnd)
 
+            // Fix year display - use session start year only
+            const displayYear = sessionStart.getFullYear()
+
             return (
               <div key={groupIndex} className={`border rounded-lg ${getStatusBgColor(parentSession.status)}`}>
                 <div className="relative">
                   <div className="text-center py-3 border-b border-gray-200">
                     <h3 className="text-sm font-medium text-gray-900">
-                      {sessionStart.getFullYear()}
-                      {sessionStart.getFullYear() !== sessionEnd.getFullYear() && 
-                        ` - ${sessionEnd.getFullYear()}`
-                      }
+                      {displayYear}
                     </h3>
                   </div>
 
@@ -329,11 +301,12 @@ export default function SessionsTimelinePage() {
                       </div>
                     ))}
                   </div>
-
-                  {renderCurrentDateIndicator(sessionStart, sessionEnd)}
                 </div>
 
-                <div className="p-4">
+                <div className="p-4 relative">
+                  {/* Current Date Indicator - behind bars only */}
+                  {renderCurrentDateIndicator(sessionStart, sessionEnd)}
+
                   <div className="flex items-center mb-4">
                     <div className="w-4 h-4 rounded" style={{ backgroundColor: parentSession.color }}></div>
                     <span className="ml-3 font-medium text-gray-900">{parentSession.name}</span>
@@ -344,7 +317,7 @@ export default function SessionsTimelinePage() {
                       {getStatusDisplay(parentSession.status)}
                     </span>
                     
-                    <div className="relative ml-auto">
+                    <div className="relative ml-2">
                       <button 
                         className="p-1 rounded-md hover:bg-gray-100"
                         onClick={(e) => {
@@ -356,25 +329,27 @@ export default function SessionsTimelinePage() {
                       </button>
 
                       {showDropdown === parentSession.id && (
-                        <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-md shadow-lg z-20 min-w-32">
+                        <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-md shadow-lg z-40 min-w-32">
                           <button
                             onClick={() => handleEditSession(parentSession)}
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
                           >
-                            Edit
+                            <Edit className="h-4 w-4" />
+                            <span>Edit</span>
                           </button>
                           <button
                             onClick={() => handleDeleteSession(parentSession.id)}
-                            className="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50"
+                            className="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50 flex items-center space-x-2"
                           >
-                            Delete
+                            <Trash2 className="h-4 w-4" />
+                            <span>Delete</span>
                           </button>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="relative h-8 bg-white border rounded mb-4">
+                  <div className="relative h-8 bg-white border rounded mb-4 z-20">
                     <div
                       className="absolute top-0 bottom-0 rounded flex items-center justify-center text-white text-sm font-medium"
                       style={{ 
@@ -407,7 +382,7 @@ export default function SessionsTimelinePage() {
                             {getStatusDisplay(childSession.status)}
                           </span>
                           
-                          <div className="relative ml-auto">
+                          <div className="relative ml-2">
                             <button 
                               className="p-1 rounded-md hover:bg-gray-100"
                               onClick={(e) => {
@@ -419,25 +394,27 @@ export default function SessionsTimelinePage() {
                             </button>
 
                             {showDropdown === childSession.id && (
-                              <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-md shadow-lg z-20 min-w-32">
+                              <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-md shadow-lg z-40 min-w-32">
                                 <button
                                   onClick={() => handleEditSession(childSession)}
-                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
                                 >
-                                  Edit
+                                  <Edit className="h-4 w-4" />
+                                  <span>Edit</span>
                                 </button>
                                 <button
                                   onClick={() => handleDeleteSession(childSession.id)}
-                                  className="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50"
+                                  className="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50 flex items-center space-x-2"
                                 >
-                                  Delete
+                                  <Trash2 className="h-4 w-4" />
+                                  <span>Delete</span>
                                 </button>
                               </div>
                             )}
                           </div>
                         </div>
                         
-                        <div className="relative h-6 bg-white border rounded">
+                        <div className="relative h-6 bg-white border rounded z-20">
                           <div
                             className="absolute top-0 bottom-0 rounded flex items-center justify-center text-white text-xs font-medium"
                             style={{ 
@@ -468,20 +445,20 @@ export default function SessionsTimelinePage() {
           {sessionGroups.map((group) => (
             <div key={group.parentSession.id}>
               <div className={`border rounded-lg p-4 ${getStatusBgColor(group.parentSession.status)}`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
+                <div className="flex items-center">
+                  <div className="flex items-center space-x-3 flex-1 min-w-0">
                     <div 
-                      className="w-4 h-4 rounded" 
+                      className="w-4 h-4 rounded flex-shrink-0" 
                       style={{ backgroundColor: group.parentSession.color }}
                     ></div>
-                    <div>
-                      <h3 className="font-medium text-gray-900">{group.parentSession.name}</h3>
-                      <p className="text-sm text-gray-500">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-medium text-gray-900 truncate">{group.parentSession.name}</h3>
+                      <p className="text-sm text-gray-500 truncate">
                         {formatDate(group.parentSession.start_date)} - {formatDate(group.parentSession.end_date)}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 flex-shrink-0 ml-4">
                     <span 
                       className={`px-2 py-1 text-xs font-medium rounded-full cursor-pointer ${getStatusColor(group.parentSession.status)}`}
                       onClick={() => handleStatusClick(group.parentSession)}
@@ -497,18 +474,20 @@ export default function SessionsTimelinePage() {
                       </button>
                       
                       {showDropdown === group.parentSession.id && (
-                        <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-md shadow-lg z-20 min-w-32">
+                        <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-md shadow-lg z-40 min-w-32">
                           <button
                             onClick={() => handleEditSession(group.parentSession)}
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
                           >
-                            Edit
+                            <Edit className="h-4 w-4" />
+                            <span>Edit</span>
                           </button>
                           <button
                             onClick={() => handleDeleteSession(group.parentSession.id)}
-                            className="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50"
+                            className="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50 flex items-center space-x-2"
                           >
-                            Delete
+                            <Trash2 className="h-4 w-4" />
+                            <span>Delete</span>
                           </button>
                         </div>
                       )}
@@ -519,20 +498,20 @@ export default function SessionsTimelinePage() {
               
               {group.childSessions.map((child) => (
                 <div key={child.id} className={`ml-8 mt-2 border rounded-lg p-3 ${getStatusBgColor(child.status)}`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
+                  <div className="flex items-center">
+                    <div className="flex items-center space-x-3 flex-1 min-w-0">
                       <div 
-                        className="w-3 h-3 rounded" 
+                        className="w-3 h-3 rounded flex-shrink-0" 
                         style={{ backgroundColor: child.color }}
                       ></div>
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-900">{child.name}</h4>
-                        <p className="text-xs text-gray-500">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-sm font-medium text-gray-900 truncate">{child.name}</h4>
+                        <p className="text-xs text-gray-500 truncate">
                           {formatDate(child.start_date)} - {formatDate(child.end_date)}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 flex-shrink-0 ml-4">
                       <span 
                         className={`px-2 py-1 text-xs font-medium rounded-full cursor-pointer ${getStatusColor(child.status)}`}
                         onClick={() => handleStatusClick(child)}
@@ -548,18 +527,20 @@ export default function SessionsTimelinePage() {
                         </button>
                         
                         {showDropdown === child.id && (
-                          <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-md shadow-lg z-20 min-w-32">
+                          <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-md shadow-lg z-40 min-w-32">
                             <button
                               onClick={() => handleEditSession(child)}
-                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
                             >
-                              Edit
+                              <Edit className="h-4 w-4" />
+                              <span>Edit</span>
                             </button>
                             <button
                               onClick={() => handleDeleteSession(child.id)}
-                              className="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50"
+                              className="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50 flex items-center space-x-2"
                             >
-                              Delete
+                              <Trash2 className="h-4 w-4" />
+                              <span>Delete</span>
                             </button>
                           </div>
                         )}
@@ -609,15 +590,17 @@ export default function SessionsTimelinePage() {
                 <div className="mt-2 bg-white border border-gray-200 rounded-md shadow-lg">
                   <button
                     onClick={() => handleEditSession(session)}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
                   >
-                    Edit
+                    <Edit className="h-4 w-4" />
+                    <span>Edit</span>
                   </button>
                   <button
                     onClick={() => handleDeleteSession(session.id)}
-                    className="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50"
+                    className="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50 flex items-center space-x-2"
                   >
-                    Delete
+                    <Trash2 className="h-4 w-4" />
+                    <span>Delete</span>
                   </button>
                 </div>
               )}
@@ -684,58 +667,7 @@ export default function SessionsTimelinePage() {
           ) : isMobile ? (
             renderMobileView()
           ) : viewMode === 'timeline' ? (
-            <div className="flex">
-              <div 
-                className="border-r border-gray-200 bg-white"
-                style={{ width: `${leftPanelWidth}px` }}
-              >
-                <div className="p-4">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Sessions</h2>
-                  <div className="space-y-2">
-                    {sessionGroups.map((group) => (
-                      <div key={group.parentSession.id}>
-                        <div className="flex items-center p-2 rounded-md hover:bg-gray-50">
-                          <div 
-                            className="w-3 h-3 rounded mr-3" 
-                            style={{ backgroundColor: group.parentSession.color }}
-                          ></div>
-                          <div className="flex-1">
-                            <div className="font-medium text-gray-900">{group.parentSession.name}</div>
-                          </div>
-                          <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(group.parentSession.status)}`}>
-                            {getStatusDisplay(group.parentSession.status)}
-                          </span>
-                        </div>
-                        
-                        {group.childSessions.map((child) => (
-                          <div key={child.id} className="flex items-center p-2 ml-6 rounded-md hover:bg-gray-50">
-                            <div 
-                              className="w-2 h-2 rounded mr-3" 
-                              style={{ backgroundColor: child.color }}
-                            ></div>
-                            <div className="flex-1">
-                              <div className="text-sm text-gray-700">{child.name}</div>
-                            </div>
-                            <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(child.status)}`}>
-                              {getStatusDisplay(child.status)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div 
-                className="w-1 bg-gray-200 hover:bg-blue-400 cursor-col-resize"
-                onMouseDown={handleMouseDown}
-              ></div>
-
-              <div className="flex-1">
-                {renderTimelineView()}
-              </div>
-            </div>
+            renderTimelineView()
           ) : (
             renderListView()
           )}
@@ -750,7 +682,7 @@ export default function SessionsTimelinePage() {
                       key={status}
                       className={`w-full text-left p-3 rounded-md border transition-colors ${
                         statusEditModal.session.status === status 
-                          ? 'border-blue-500 bg-blue-50 text-blue-900' 
+                          ? 'border-blue-500 bg-blue-50 text-blue-900 font-medium' 
                           : 'border-gray-200 hover:bg-gray-50 text-gray-900'
                       }`}
                       onClick={() => handleStatusUpdate(status)}
