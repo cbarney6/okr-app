@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Home, Target, Calendar, Settings, Users, BarChart3, Menu, X } from 'lucide-react'
+import { Home, Target, Calendar, Settings, Users, BarChart3 } from 'lucide-react'
 import Link from 'next/link'
 
 interface NavigationSidebarProps {

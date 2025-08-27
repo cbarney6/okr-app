@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { Plus, Edit, Trash2, Calendar, Clock } from 'lucide-react'
 import CreateSessionModal from './CreateSessionModal'
@@ -25,7 +25,7 @@ interface SessionsListProps {
   organizationId?: string
 }
 
-export default function SessionsList({ organizationId }: SessionsListProps) {
+export default function SessionsList({ }: SessionsListProps) {
   const [sessions, setSessions] = useState<Session[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -39,7 +39,7 @@ export default function SessionsList({ organizationId }: SessionsListProps) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  const fetchSessions = async () => {
+  const fetchSessions = useCallback(async () => {
     try {
       setLoading(true)
       const { data, error } = await supabase
@@ -54,7 +54,7 @@ export default function SessionsList({ organizationId }: SessionsListProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
   const handleEditSession = (session: Session) => {
     setEditingSession(session)
@@ -108,7 +108,7 @@ export default function SessionsList({ organizationId }: SessionsListProps) {
 
   useEffect(() => {
     fetchSessions()
-  }, [])
+  }, [fetchSessions])
 
   if (loading) {
     return (

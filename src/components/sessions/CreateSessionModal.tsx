@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 
 interface Session {
@@ -42,7 +42,7 @@ export default function CreateSessionModal({ isOpen, onClose, onSuccess }: Creat
   }
 
   // Fetch available parent sessions
-  const fetchAvailableSessions = async () => {
+  const fetchAvailableSessions = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('sessions')
@@ -55,29 +55,20 @@ export default function CreateSessionModal({ isOpen, onClose, onSuccess }: Creat
     } catch (error) {
       console.error('Error fetching sessions:', error)
     }
-  }
+  }, [supabase])
 
   // Fetch sessions when modal opens
   useEffect(() => {
     if (isOpen) {
       fetchAvailableSessions()
     }
-  }, [isOpen])
+  }, [isOpen, fetchAvailableSessions])
 
   // Fix timezone offset issue with HTML date inputs
   const adjustDateForTimezone = (dateString: string) => {
     if (!dateString) return dateString
     const date = new Date(dateString + 'T00:00:00')
     return date.toISOString().split('T')[0]
-  }
-
-  // Generate unique slug using crypto API for guaranteed uniqueness
-  const generateUniqueSlug = (email: string) => {
-    const baseSlug = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '')
-    const randomBytes = new Uint8Array(4)
-    crypto.getRandomValues(randomBytes)
-    const randomSuffix = Array.from(randomBytes, byte => byte.toString(36)).join('')
-    return `${baseSlug}-${randomSuffix}`
   }
 
   const colors = [

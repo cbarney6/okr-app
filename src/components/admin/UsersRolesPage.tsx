@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
-import { Users, Mail, Settings, UserPlus } from 'lucide-react'
+import { Mail, UserPlus } from 'lucide-react'
 import InviteUsersModal from '@/components/admin/InviteUsersModal'
 
 interface User {
@@ -38,7 +38,7 @@ export default function UsersRolesPage() {
   // Check if current user is admin
   const isAdmin = currentUserRoles.includes('admin')
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -50,9 +50,9 @@ export default function UsersRolesPage() {
     } catch (error) {
       console.error('Error fetching users:', error)
     }
-  }
+  }, [supabase])
 
-  const fetchPendingInvites = async () => {
+  const fetchPendingInvites = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('user_invitations')
@@ -66,9 +66,9 @@ export default function UsersRolesPage() {
     } catch (error) {
       console.error('Error fetching pending invites:', error)
     }
-  }
+  }, [supabase])
 
-  const getCurrentUserRoles = async () => {
+  const getCurrentUserRoles = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
@@ -84,7 +84,7 @@ export default function UsersRolesPage() {
     } catch (error) {
       console.error('Error fetching current user roles:', error)
     }
-  }
+  }, [supabase])
 
   const handleInviteSuccess = () => {
     fetchPendingInvites()
@@ -113,7 +113,7 @@ export default function UsersRolesPage() {
     fetchUsers()
     fetchPendingInvites()
     setLoading(false)
-  }, [])
+  }, [getCurrentUserRoles, fetchUsers, fetchPendingInvites])
 
   if (loading) {
     return (

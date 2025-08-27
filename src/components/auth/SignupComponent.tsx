@@ -25,7 +25,7 @@ export default function SignupComponent({
   const [companyWebsite, setCompanyWebsite] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [isInvitation, setIsInvitation] = useState(!!invitationToken)
+  const [isInvitation] = useState(!!invitationToken)
 
   const router = useRouter()
   

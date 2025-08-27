@@ -99,12 +99,6 @@ export default function InviteUsersModal({ isOpen, onClose, onSuccess }: InviteU
       throw new Error('User organization not found')
     }
 
-    const { data: organization } = await supabase
-      .from('organizations')
-      .select('name')
-      .eq('id', profile.organization_id)
-      .single()
-
     const invitations = emailList.map(email => ({
       email,
       organization_id: profile.organization_id,
@@ -265,7 +259,7 @@ export default function InviteUsersModal({ isOpen, onClose, onSuccess }: InviteU
         <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
           <p className="text-xs text-yellow-800">
             <strong>Note:</strong> Invited users will receive an email with a signup link that expires in 7 days. 
-            They will appear as "Pending" until they complete registration.
+            They will appear as &quot;Pending&quot; until they complete registration.
           </p>
         </div>
       </div>
