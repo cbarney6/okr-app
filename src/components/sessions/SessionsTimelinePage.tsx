@@ -110,13 +110,19 @@ const SessionsTimeline = ({ sessions, onEditSession, onDeleteSession, onStatusUp
 
   // Get current date position for indicator line
   const getCurrentDatePosition = (year: number) => {
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    
+    // Only show current date indicator for the current year
+    if (year !== currentYear) return null
+    
     const yearStart = new Date(year, 0, 1).getTime()
     const yearEnd = new Date(year, 11, 31).getTime()
-    const now = new Date().getTime()
+    const nowTime = now.getTime()
     
-    if (now < yearStart || now > yearEnd) return null
+    if (nowTime < yearStart || nowTime > yearEnd) return null
     
-    const position = ((now - yearStart) / (yearEnd - yearStart)) * 100
+    const position = ((nowTime - yearStart) / (yearEnd - yearStart)) * 100
     return `${position}%`
   }
 
@@ -138,7 +144,7 @@ const SessionsTimeline = ({ sessions, onEditSession, onDeleteSession, onStatusUp
         
         return (
           <div key={year} className="mb-8 last:mb-0">
-            {/* Year Header - Centered above Jan */}
+            {/* Year Header - Use actual session year, not timeline calculation */}
             <div className="relative mb-4">
               <div className="text-center">
                 <div className="text-lg font-medium text-gray-600">{year}</div>
@@ -174,15 +180,12 @@ const SessionsTimeline = ({ sessions, onEditSession, onDeleteSession, onStatusUp
                   <div key={parentSession.id} className="mb-6">
                     {/* Parent Session Row */}
                     <div className="flex items-center mb-2">
-                      <div className="flex items-center space-x-2 min-w-0 flex-1">
+                      <div className="flex items-center space-x-2 min-w-0 flex-shrink-0" style={{ width: '300px' }}>
                         <div 
                           className="w-3 h-3 rounded-full flex-shrink-0" 
                           style={{ backgroundColor: parentSession.color }}
                         />
                         <div className="font-medium text-gray-900 truncate">{parentSession.name}</div>
-                        <div className="text-sm text-gray-500 flex-shrink-0">
-                          {getStatusDisplayText(parentSession.status)}
-                        </div>
                         <button
                           onClick={() => setStatusEditModal({ isOpen: true, session: parentSession })}
                           className={`px-2 py-1 text-xs rounded-full ${getStatusColor(parentSession.status)} hover:opacity-75 transition-opacity flex-shrink-0`}
@@ -221,15 +224,12 @@ const SessionsTimeline = ({ sessions, onEditSession, onDeleteSession, onStatusUp
                         <div key={childSession.id} className="ml-6 mb-3">
                           {/* Child Session Row */}
                           <div className="flex items-center mb-2">
-                            <div className="flex items-center space-x-2 min-w-0 flex-1">
+                            <div className="flex items-center space-x-2 min-w-0 flex-shrink-0" style={{ width: '300px' }}>
                               <div 
                                 className="w-2 h-2 rounded-full flex-shrink-0" 
                                 style={{ backgroundColor: childSession.color }}
                               />
                               <div className="text-sm text-gray-700 truncate">{childSession.name}</div>
-                              <div className="text-sm text-gray-500 flex-shrink-0">
-                                {getStatusDisplayText(childSession.status)}
-                              </div>
                               <button
                                 onClick={() => setStatusEditModal({ isOpen: true, session: childSession })}
                                 className={`px-2 py-1 text-xs rounded-full ${getStatusColor(childSession.status)} hover:opacity-75 transition-opacity flex-shrink-0`}
@@ -383,28 +383,26 @@ const SessionsList = ({ sessions, onEditSession, onDeleteSession, onStatusUpdate
               <div key={parentSession.id} className="border-b border-gray-100 pb-4 last:border-b-0 last:pb-0">
                 {/* Parent Session */}
                 <div className="flex items-center justify-between py-3">
-                  <div className="flex items-center space-x-3 min-w-0 flex-1">
+                  <div className="flex items-center space-x-3 min-w-0">
                     <div 
                       className="w-4 h-4 rounded-full flex-shrink-0" 
                       style={{ backgroundColor: parentSession.color }}
                     />
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0">
                       <div className="font-medium text-gray-900 truncate">{parentSession.name}</div>
                       <div className="text-sm text-gray-500">
                         {formatDate(parentSession.start_date)} - {formatDate(parentSession.end_date)}
                       </div>
                     </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2 flex-shrink-0 ml-4">
+                    
                     <button
                       onClick={() => setStatusEditModal({ isOpen: true, session: parentSession })}
-                      className={`px-2 py-1 text-xs rounded-full ${getStatusColor(parentSession.status)} hover:opacity-75 transition-opacity`}
+                      className={`px-2 py-1 text-xs rounded-full ${getStatusColor(parentSession.status)} hover:opacity-75 transition-opacity flex-shrink-0 ml-4`}
                     >
                       {getStatusDisplayText(parentSession.status)}
                     </button>
                     
-                    <div className="relative">
+                    <div className="relative flex-shrink-0">
                       <button className="text-gray-400 hover:text-gray-600 p-1">
                         <MoreHorizontal className="h-4 w-4" />
                       </button>
@@ -415,28 +413,26 @@ const SessionsList = ({ sessions, onEditSession, onDeleteSession, onStatusUpdate
                 {/* Child Sessions */}
                 {childSessions.map((childSession) => (
                   <div key={childSession.id} className="flex items-center justify-between py-2 ml-8">
-                    <div className="flex items-center space-x-3 min-w-0 flex-1">
+                    <div className="flex items-center space-x-3 min-w-0">
                       <div 
                         className="w-3 h-3 rounded-full flex-shrink-0" 
                         style={{ backgroundColor: childSession.color }}
                       />
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-0">
                         <div className="text-sm text-gray-700 truncate">{childSession.name}</div>
                         <div className="text-xs text-gray-500">
                           {formatDate(childSession.start_date)} - {formatDate(childSession.end_date)}
                         </div>
                       </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2 flex-shrink-0 ml-4">
+                      
                       <button
                         onClick={() => setStatusEditModal({ isOpen: true, session: childSession })}
-                        className={`px-2 py-1 text-xs rounded-full ${getStatusColor(childSession.status)} hover:opacity-75 transition-opacity`}
+                        className={`px-2 py-1 text-xs rounded-full ${getStatusColor(childSession.status)} hover:opacity-75 transition-opacity flex-shrink-0 ml-4`}
                       >
                         {getStatusDisplayText(childSession.status)}
                       </button>
                       
-                      <div className="relative">
+                      <div className="relative flex-shrink-0">
                         <button className="text-gray-400 hover:text-gray-600 p-1">
                           <MoreHorizontal className="h-4 w-4" />
                         </button>
