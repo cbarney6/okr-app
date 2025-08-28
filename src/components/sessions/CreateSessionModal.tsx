@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { X } from 'lucide-react'
 
@@ -9,6 +9,7 @@ interface Session {
   name: string
   start_date: string
   end_date: string
+  status: string
 }
 
 interface CreateSessionModalProps {
@@ -37,7 +38,7 @@ export default function CreateSessionModal({
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [availableSessions] = useState<Session[]>([])
+  const [availableSessions, setAvailableSessions] = useState<Session[]>([])
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -48,6 +49,43 @@ export default function CreateSessionModal({
     '#3B82F6', '#10B981', '#F59E0B', '#EF4444', 
     '#8B5CF6', '#06B6D4', '#84CC16', '#F97316'
   ]
+
+  // Format date to prevent timezone offset display issues
+  const formatDateForOption = (dateString: string) => {
+    const date = new Date(dateString)
+    date.setMinutes(date.getMinutes() + date.getTimezoneOffset())
+    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+  }
+
+  // Fetch available parent sessions when modal opens
+  const fetchAvailableSessions = useCallback(async () => {
+    try {
+      const organizationId = await getCurrentUserOrgId()
+      if (!organizationId) return
+
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('id, name, start_date, end_date, status')
+        .eq('organization_id', organizationId)
+        .in('status', ['open', 'in_progress']) // Only show active sessions
+        .order('start_date', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching sessions:', error)
+        return
+      }
+      
+      setAvailableSessions(data || [])
+    } catch (error) {
+      console.error('Error fetching available sessions:', error)
+    }
+  }, [supabase, getCurrentUserOrgId])
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchAvailableSessions()
+    }
+  }, [isOpen, fetchAvailableSessions])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -78,6 +116,20 @@ export default function CreateSessionModal({
         return
       }
 
+      // Reset form and close modal
+      setFormData({
+        name: '',
+        description: '',
+        start_date: '',
+        end_date: '',
+        parent_session_id: '',
+        color: '#3B82F6',
+        cadence: 'weekly',
+        cadence_day: 'monday',
+        status: 'open'
+      })
+      setAvailableSessions([])
+      
       onSuccess()
     } catch (error) {
       console.error('Error creating session:', error)
@@ -177,7 +229,7 @@ export default function CreateSessionModal({
                 <option value="">No parent (top-level session)</option>
                 {availableSessions.map((session) => (
                   <option key={session.id} value={session.id}>
-                    {session.name}
+                    {session.name} ({formatDateForOption(session.start_date)} - {formatDateForOption(session.end_date)})
                   </option>
                 ))}
               </select>

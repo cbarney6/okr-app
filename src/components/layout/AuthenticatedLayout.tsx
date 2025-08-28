@@ -11,109 +11,103 @@ interface AuthenticatedLayoutProps {
 }
 
 export default function AuthenticatedLayout({ children, pageTitle }: AuthenticatedLayoutProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [sidebarExpanded, setSidebarExpanded] = useState(false)
   const pathname = usePathname()
 
-  const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home, href: '/dashboard' },
-    { id: 'okrs', label: 'Objectives & Key Results', icon: Target, href: '/okrs' },
-    { id: 'sessions', label: 'Sessions', icon: Calendar, href: '/sessions' },
-    { id: 'reports', label: 'Reports', icon: BarChart3, href: '/reports' },
-    { id: 'users', label: 'Users & Roles', icon: Users, href: '/users' },
-    { id: 'settings', label: 'Settings', icon: Settings, href: '/settings' },
+  const navigationItems = [
+    { name: 'Dashboard', href: '/dashboard', icon: Home },
+    { name: 'Objectives & Key Results', href: '/okrs', icon: Target },
+    { name: 'Sessions', href: '/sessions', icon: Calendar },
+    { name: 'Reports', href: '/reports', icon: BarChart3 },
+    { name: 'Users & Roles', href: '/users', icon: Users },
+    { name: 'Settings', href: '/settings', icon: Settings },
   ]
 
-  const getCurrentPage = () => {
-    const path = pathname.replace('/', '') || 'dashboard'
-    return menuItems.find(item => item.href.includes(path))?.id || 'dashboard'
-  }
-
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
-      <aside 
-        className={`fixed left-0 top-0 h-full bg-white border-r border-gray-200 z-40 transition-all duration-300 ease-in-out ${
-          isExpanded ? 'w-64' : 'w-16'
+      <div 
+        className={`bg-white border-r border-gray-200 transition-all duration-300 ease-in-out flex-shrink-0 ${
+          sidebarExpanded ? 'w-64' : 'w-16'
         }`}
-        onMouseEnter={() => setIsExpanded(true)}
-        onMouseLeave={() => setIsExpanded(false)}
+        onMouseEnter={() => setSidebarExpanded(true)}
+        onMouseLeave={() => setSidebarExpanded(false)}
       >
-        {/* Header with logo */}
-        <div className="flex items-center h-16 px-4 border-b border-gray-200">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+        <div className="flex flex-col h-full">
+          {/* Logo */}
+          <div className="flex items-center h-16 px-4 border-b border-gray-200">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
               <Target className="h-5 w-5 text-white" />
             </div>
-            <span className={`text-lg font-semibold text-gray-900 transition-all duration-300 ${
-              isExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0 overflow-hidden'
-            }`}>
-              OKR App
-            </span>
-          </div>
-        </div>
-
-        {/* Navigation Menu */}
-        <nav className="flex-1 px-2 py-4 space-y-1">
-          {menuItems.map((item) => {
-            const Icon = item.icon
-            const isActive = getCurrentPage() === item.id
-            
-            return (
-              <Link
-                key={item.id}
-                href={item.href}
-                className={`flex items-center px-3 py-2 text-sm rounded-md transition-colors duration-200 group ${
-                  isActive
-                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <Icon className={`h-5 w-5 flex-shrink-0 ${
-                  isActive ? 'text-blue-700' : 'text-gray-500 group-hover:text-gray-700'
-                }`} />
-                
-                <span className={`ml-3 transition-all duration-300 ${
-                  isExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0 overflow-hidden'
-                }`}>
-                  {item.label}
-                </span>
-              </Link>
-            )
-          })}
-        </nav>
-
-        {/* User Profile Section - Fixed at bottom */}
-        <div className="border-t border-gray-200 p-3">
-          <Link href="/profile" className="flex items-center space-x-3 hover:bg-gray-50 rounded-md p-2 transition-colors">
-            <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-white font-medium text-sm flex-shrink-0 cursor-pointer">
-              CB
-            </div>
-            <div className={`transition-all duration-300 ${
-              isExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0 overflow-hidden'
-            }`}>
-              <p className="text-sm font-medium text-gray-900">Chris Barney</p>
-              <p className="text-xs text-gray-500">cbarney6@gmail.com</p>
-            </div>
-          </Link>
-        </div>
-      </aside>
-
-      {/* Main content */}
-      <div className="flex-1 ml-16">
-        {/* Top navigation bar */}
-        <header className="bg-white shadow-sm border-b border-gray-200 h-16 flex items-center justify-between px-6">
-          <div>
-            {pageTitle && (
-              <h1 className="text-xl font-semibold text-gray-900">{pageTitle}</h1>
+            {sidebarExpanded && (
+              <div className="ml-3 text-xl font-bold text-gray-900 whitespace-nowrap">OKR App</div>
             )}
           </div>
-          <div className="flex items-center space-x-4">
-            {/* Additional header content can go here */}
+
+          {/* Navigation */}
+          <nav className="flex-1 px-3 py-4">
+            <div className="space-y-1">
+              {navigationItems.map((item) => {
+                const Icon = item.icon
+                const isActive = pathname === item.href
+                
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`group flex items-center px-3 py-3 text-sm font-medium rounded-md transition-colors ${
+                      isActive
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                    }`}
+                  >
+                    <Icon className={`h-5 w-5 flex-shrink-0 ${sidebarExpanded ? '' : 'mx-auto'}`} />
+                    {sidebarExpanded && (
+                      <span className="ml-3 whitespace-nowrap">{item.name}</span>
+                    )}
+                  </Link>
+                )
+              })}
+            </div>
+          </nav>
+
+          {/* User Profile Section */}
+          <div className="border-t border-gray-200 p-4">
+            <Link
+              href="/profile"
+              className="group flex items-center text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
+            >
+              <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                CB
+              </div>
+              {sidebarExpanded && (
+                <div className="ml-3 min-w-0">
+                  <div className="text-gray-900 font-medium whitespace-nowrap">Chris Barney</div>
+                  <div className="text-xs text-gray-500 truncate">cbarney6@gmail.com</div>
+                </div>
+              )}
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Area - Dynamically Adjusts */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top Navigation Bar */}
+        <header className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold text-gray-900">
+              {pageTitle || 'Dashboard'}
+            </h1>
+            
+            <div className="flex items-center space-x-4">
+              {/* Additional header content can go here */}
+            </div>
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
+        {/* Page Content - Scrollable */}
+        <main className="flex-1 overflow-auto">
           {children}
         </main>
       </div>

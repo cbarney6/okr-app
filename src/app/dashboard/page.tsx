@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
-import { Target, Calendar, TrendingUp } from 'lucide-react'
+import { Target, Calendar, TrendingUp, ChevronDown } from 'lucide-react'
 import Link from 'next/link'
 import AuthenticatedLayout from '@/components/layout/AuthenticatedLayout'
 
@@ -17,6 +17,15 @@ interface DashboardMetrics {
   keyResultsInDanger: number
   dynamicKeyResults: number
   manualKeyResults: number
+}
+
+interface Session {
+  id: string
+  name: string
+  start_date: string
+  end_date: string
+  status: string
+  parent_session_id?: string
 }
 
 interface MetricCardProps {
@@ -77,14 +86,28 @@ export default function DashboardPage() {
     manualKeyResults: 0
   })
   const [loading, setLoading] = useState(true)
-  const [currentSession, setCurrentSession] = useState<string>('')
+  const [availableSessions, setAvailableSessions] = useState<Session[]>([])
+  const [selectedSessionId, setSelectedSessionId] = useState<string>('')
+  const [selectedSession, setSelectedSession] = useState<Session | null>(null)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  const fetchMetrics = useCallback(async () => {
+  // Format date to prevent timezone offset display issues
+  const formatDateRange = (startDate: string, endDate: string) => {
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    
+    // Fix timezone offset to display actual dates
+    start.setMinutes(start.getMinutes() + start.getTimezoneOffset())
+    end.setMinutes(end.getMinutes() + end.getTimezoneOffset())
+    
+    return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+  }
+
+  const fetchSessions = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
@@ -97,60 +120,83 @@ export default function DashboardPage() {
 
       if (!profile?.organization_id) return
 
-      // Get current active session
+      // Fetch all sessions with in_progress status (both parent and child)
       const { data: sessions } = await supabase
         .from('sessions')
         .select('*')
         .eq('organization_id', profile.organization_id)
         .eq('status', 'in_progress')
-        .order('start_date', { ascending: false })
-        .limit(1)
+        .order('start_date', { ascending: true })
 
       if (sessions && sessions.length > 0) {
-        const session = sessions[0]
-        setCurrentSession(`${session.name}`)
+        setAvailableSessions(sessions)
         
-        // Calculate days to deadline
-        const endDate = new Date(session.end_date)
-        const now = new Date()
-        const diffTime = endDate.getTime() - now.getTime()
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-        
-        // Mock metrics data - in real app, fetch from OKR tables
-        setMetrics({
-          progress: 7,
-          daysToDeadline: Math.max(0, diffDays),
-          objectives: 4,
-          objectivesHit: 0,
-          keyResults: 2,
-          keyResultsHit: 0,
-          keyResultsGoingWell: 0,
-          keyResultsInDanger: 2,
-          dynamicKeyResults: 0,
-          manualKeyResults: 2
-        })
-      } else {
-        // No active session
-        setCurrentSession('')
-        setMetrics({
-          progress: 0,
-          daysToDeadline: 0,
-          objectives: 0,
-          objectivesHit: 0,
-          keyResults: 0,
-          keyResultsHit: 0,
-          keyResultsGoingWell: 0,
-          keyResultsInDanger: 0,
-          dynamicKeyResults: 0,
-          manualKeyResults: 0
-        })
+        // Default to first in_progress parent session
+        const defaultSession = sessions.find(s => !s.parent_session_id) || sessions[0]
+        setSelectedSessionId(defaultSession.id)
+        setSelectedSession(defaultSession)
       }
     } catch (error) {
-      console.error('Error fetching metrics:', error)
+      console.error('Error fetching sessions:', error)
+    }
+  }, [supabase])
+
+  const fetchMetrics = useCallback(async () => {
+    if (!selectedSession) {
+      setMetrics({
+        progress: 0,
+        daysToDeadline: 0,
+        objectives: 0,
+        objectivesHit: 0,
+        keyResults: 0,
+        keyResultsHit: 0,
+        keyResultsGoingWell: 0,
+        keyResultsInDanger: 0,
+        dynamicKeyResults: 0,
+        manualKeyResults: 0
+      })
+      setLoading(false)
+      return
+    }
+
+    try {
+      // Calculate days to deadline
+      const endDate = new Date(selectedSession.end_date)
+      const now = new Date()
+      const diffTime = endDate.getTime() - now.getTime()
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+      
+      // Mock metrics data - in real app, fetch from OKR tables based on selected session
+      const isParentSession = !selectedSession.parent_session_id
+      
+      setMetrics({
+        progress: isParentSession ? 67 : 45,
+        daysToDeadline: Math.max(0, diffDays),
+        objectives: isParentSession ? 12 : 4,
+        objectivesHit: isParentSession ? 3 : 1,
+        keyResults: isParentSession ? 36 : 12,
+        keyResultsHit: isParentSession ? 8 : 2,
+        keyResultsGoingWell: isParentSession ? 20 : 7,
+        keyResultsInDanger: isParentSession ? 8 : 3,
+        dynamicKeyResults: isParentSession ? 18 : 6,
+        manualKeyResults: isParentSession ? 18 : 6
+      })
+    } catch (error) {
+      console.error('Error calculating metrics:', error)
     } finally {
       setLoading(false)
     }
-  }, [supabase])
+  }, [selectedSession])
+
+  const handleSessionChange = (sessionId: string) => {
+    setSelectedSessionId(sessionId)
+    const session = availableSessions.find(s => s.id === sessionId)
+    setSelectedSession(session || null)
+  }
+
+  useEffect(() => {
+    fetchSessions()
+  }, [fetchSessions])
 
   useEffect(() => {
     fetchMetrics()
@@ -176,14 +222,46 @@ export default function DashboardPage() {
   return (
     <AuthenticatedLayout pageTitle="Dashboard">
       <div className="px-6 py-8">
-        {currentSession && (
-          <div className="mb-6">
-            <div className="text-sm text-gray-600">Current session: {currentSession}</div>
+        {/* Session Selector */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Session Filter
+          </label>
+          <div className="relative w-80">
+            <select
+              value={selectedSessionId}
+              onChange={(e) => handleSessionChange(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 appearance-none"
+            >
+              {availableSessions.map((session) => (
+                <option key={session.id} value={session.id}>
+                  {session.name} ({formatDateRange(session.start_date, session.end_date)})
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="h-4 w-4 text-gray-400 absolute right-3 top-3 pointer-events-none" />
           </div>
-        )}
+        </div>
 
-        {currentSession ? (
+        {selectedSession ? (
           <div className="space-y-8">
+            {/* Current Session Info */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium text-blue-900">Current Session</h3>
+                  <p className="text-blue-800">{selectedSession.name}</p>
+                  <p className="text-xs text-blue-600">
+                    {formatDateRange(selectedSession.start_date, selectedSession.end_date)}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-blue-900">{metrics.progress}%</div>
+                  <div className="text-xs text-blue-600">Progress</div>
+                </div>
+              </div>
+            </div>
+
             {/* Metrics Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
               <MetricCard
@@ -197,7 +275,7 @@ export default function DashboardPage() {
               <MetricCard
                 title="Days to deadline"
                 value={metrics.daysToDeadline}
-                subtitle={`This session's deadline is December 31, 2025.`}
+                subtitle={`This session's deadline is ${formatDateRange(selectedSession.end_date, selectedSession.end_date).split(' - ')[1]}.`}
                 color="orange"
                 href="/sessions"
               />
