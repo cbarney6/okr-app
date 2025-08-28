@@ -5,6 +5,7 @@ import { createBrowserClient } from '@supabase/ssr'
 import { Plus, MoreHorizontal, List, Calendar as CalendarIcon, Edit, Trash2 } from 'lucide-react'
 import CreateSessionModal from '@/components/sessions/CreateSessionModal'
 import EditSessionModal from '@/components/sessions/EditSessionModal'
+import AuthenticatedLayout from '@/components/layout/AuthenticatedLayout'
 
 interface Session {
   id: string
@@ -131,7 +132,7 @@ const SessionsTimeline = ({ sessions, onEditSession, onDeleteSession, onStatusUp
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6 mx-6">
+    <div className="bg-white rounded-lg border border-gray-200 p-6">
       {Object.entries(sessionsByYear).map(([year, yearSessions]) => {
         const currentDatePos = getCurrentDatePosition(parseInt(year))
         
@@ -196,8 +197,8 @@ const SessionsTimeline = ({ sessions, onEditSession, onDeleteSession, onStatusUp
                       </div>
                     </div>
                     
-                    {/* Parent Session Timeline Bar */}
-                    <div className="relative h-8 bg-gray-100 rounded mb-3">
+                    {/* Parent Session Timeline Bar - Contained within grid */}
+                    <div className="relative h-8 bg-gray-100 rounded mb-3 overflow-hidden">
                       <div 
                         className="absolute h-full rounded z-10"
                         style={{ 
@@ -206,7 +207,7 @@ const SessionsTimeline = ({ sessions, onEditSession, onDeleteSession, onStatusUp
                           backgroundColor: parentSession.color 
                         }}
                       >
-                        <div className="flex items-center justify-center h-full text-white text-xs font-medium">
+                        <div className="flex items-center justify-center h-full text-white text-xs font-medium px-2">
                           {formatDateRange(parentSession.start_date, parentSession.end_date)}
                         </div>
                       </div>
@@ -243,8 +244,8 @@ const SessionsTimeline = ({ sessions, onEditSession, onDeleteSession, onStatusUp
                             </div>
                           </div>
                           
-                          {/* Child Session Timeline Bar */}
-                          <div className="relative h-6 bg-gray-50 rounded">
+                          {/* Child Session Timeline Bar - Contained within grid */}
+                          <div className="relative h-6 bg-gray-50 rounded overflow-hidden">
                             <div 
                               className="absolute h-full rounded z-10"
                               style={{ 
@@ -253,7 +254,7 @@ const SessionsTimeline = ({ sessions, onEditSession, onDeleteSession, onStatusUp
                                 backgroundColor: childSession.color 
                               }}
                             >
-                              <div className="flex items-center justify-center h-full text-white text-xs">
+                              <div className="flex items-center justify-center h-full text-white text-xs px-2">
                                 {formatDateRange(childSession.start_date, childSession.end_date)}
                               </div>
                             </div>
@@ -372,7 +373,7 @@ const SessionsList = ({ sessions, onEditSession, onDeleteSession, onStatusUpdate
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 mx-6">
+    <div className="bg-white rounded-lg border border-gray-200">
       <div className="p-6">
         <div className="space-y-4">
           {parentSessions.map((parentSession) => {
@@ -597,108 +598,112 @@ export default function SessionsTimelinePage() {
 
   if (loading) {
     return (
-      <div className="px-6 py-8">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
-          <div className="space-y-4">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-16 bg-gray-200 rounded-lg"></div>
-            ))}
+      <AuthenticatedLayout pageTitle="Sessions">
+        <div className="px-6 py-8">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
+            <div className="space-y-4">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-16 bg-gray-200 rounded-lg"></div>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      </AuthenticatedLayout>
     )
   }
 
   return (
-    <div className="px-6 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Sessions</h1>
-          <p className="text-gray-600">Manage your OKR sessions and time periods</p>
-        </div>
-        
-        <div className="flex items-center space-x-4">
-          {/* View Toggle */}
-          <div className="flex items-center bg-gray-100 rounded-lg p-1">
-            <button
-              onClick={() => setViewMode('timeline')}
-              className={`flex items-center px-3 py-1 text-sm rounded-md transition-colors ${
-                viewMode === 'timeline'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <CalendarIcon className="h-4 w-4 mr-1" />
-              Timeline
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`flex items-center px-3 py-1 text-sm rounded-md transition-colors ${
-                viewMode === 'list'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <List className="h-4 w-4 mr-1" />
-              List
-            </button>
+    <AuthenticatedLayout pageTitle="Sessions">
+      <div className="px-6 py-8">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Sessions</h1>
+            <p className="text-gray-600">Manage your OKR sessions and time periods</p>
           </div>
           
-          <button
-            onClick={() => setCreateModalOpen(true)}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Create Session
-          </button>
+          <div className="flex items-center space-x-4">
+            {/* View Toggle */}
+            <div className="flex items-center bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setViewMode('timeline')}
+                className={`flex items-center px-3 py-1 text-sm rounded-md transition-colors ${
+                  viewMode === 'timeline'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <CalendarIcon className="h-4 w-4 mr-1" />
+                Timeline
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`flex items-center px-3 py-1 text-sm rounded-md transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <List className="h-4 w-4 mr-1" />
+                List
+              </button>
+            </div>
+            
+            <button
+              onClick={() => setCreateModalOpen(true)}
+              className="flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create Session
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Render based on view mode */}
-      {viewMode === 'timeline' ? (
-        <SessionsTimeline
-          sessions={sessions}
-          onEditSession={handleEditSession}
-          onDeleteSession={handleDeleteSession}
-          onStatusUpdate={handleStatusUpdate}
-        />
-      ) : (
-        <SessionsList
-          sessions={sessions}
-          onEditSession={handleEditSession}
-          onDeleteSession={handleDeleteSession}
-          onStatusUpdate={handleStatusUpdate}
-        />
-      )}
+        {/* Render based on view mode */}
+        {viewMode === 'timeline' ? (
+          <SessionsTimeline
+            sessions={sessions}
+            onEditSession={handleEditSession}
+            onDeleteSession={handleDeleteSession}
+            onStatusUpdate={handleStatusUpdate}
+          />
+        ) : (
+          <SessionsList
+            sessions={sessions}
+            onEditSession={handleEditSession}
+            onDeleteSession={handleDeleteSession}
+            onStatusUpdate={handleStatusUpdate}
+          />
+        )}
 
-      {/* Create Session Modal */}
-      <CreateSessionModal
-        isOpen={createModalOpen}
-        onClose={() => setCreateModalOpen(false)}
-        onSuccess={() => {
-          setCreateModalOpen(false)
-          fetchSessions()
-        }}
-        getCurrentUserOrgId={getCurrentUserOrgId}
-      />
-
-      {/* Edit Session Modal */}
-      {editModalOpen && editingSession && (
-        <EditSessionModal
-          isOpen={editModalOpen}
-          session={editingSession}
-          onClose={() => {
-            setEditModalOpen(false)
-            setEditingSession(null)
-          }}
+        {/* Create Session Modal */}
+        <CreateSessionModal
+          isOpen={createModalOpen}
+          onClose={() => setCreateModalOpen(false)}
           onSuccess={() => {
-            setEditModalOpen(false)
-            setEditingSession(null)
+            setCreateModalOpen(false)
             fetchSessions()
           }}
+          getCurrentUserOrgId={getCurrentUserOrgId}
         />
-      )}
-    </div>
+
+        {/* Edit Session Modal */}
+        {editModalOpen && editingSession && (
+          <EditSessionModal
+            isOpen={editModalOpen}
+            session={editingSession}
+            onClose={() => {
+              setEditModalOpen(false)
+              setEditingSession(null)
+            }}
+            onSuccess={() => {
+              setEditModalOpen(false)
+              setEditingSession(null)
+              fetchSessions()
+            }}
+          />
+        )}
+      </div>
+    </AuthenticatedLayout>
   )
 }

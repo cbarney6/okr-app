@@ -120,21 +120,32 @@ export default function DashboardPage() {
 
       if (!profile?.organization_id) return
 
-      // Fetch all sessions with in_progress status (both parent and child)
+      // Fetch all sessions that are not archived
       const { data: sessions } = await supabase
         .from('sessions')
         .select('*')
         .eq('organization_id', profile.organization_id)
-        .eq('status', 'in_progress')
+        .in('status', ['open', 'in_progress'])
         .order('start_date', { ascending: true })
 
       if (sessions && sessions.length > 0) {
         setAvailableSessions(sessions)
         
-        // Default to first in_progress parent session
-        const defaultSession = sessions.find(s => !s.parent_session_id) || sessions[0]
-        setSelectedSessionId(defaultSession.id)
-        setSelectedSession(defaultSession)
+        // Default to first in_progress session, or leave empty if none
+        const defaultSession = sessions.find(s => s.status === 'in_progress')
+        if (defaultSession) {
+          setSelectedSessionId(defaultSession.id)
+          setSelectedSession(defaultSession)
+        } else {
+          // No in_progress session, show empty state
+          setSelectedSessionId('')
+          setSelectedSession(null)
+        }
+      } else {
+        // No sessions at all
+        setAvailableSessions([])
+        setSelectedSessionId('')
+        setSelectedSession(null)
       }
     } catch (error) {
       console.error('Error fetching sessions:', error)
@@ -142,8 +153,9 @@ export default function DashboardPage() {
   }, [supabase])
 
   const fetchMetrics = useCallback(async () => {
-    if (!selectedSession) {
-      setMetrics({
+    try {
+      // Always show metrics, even if no session or session is not in_progress
+      let metricsData: DashboardMetrics = {
         progress: 0,
         daysToDeadline: 0,
         objectives: 0,
@@ -154,33 +166,32 @@ export default function DashboardPage() {
         keyResultsInDanger: 0,
         dynamicKeyResults: 0,
         manualKeyResults: 0
-      })
-      setLoading(false)
-      return
-    }
+      }
 
-    try {
-      // Calculate days to deadline
-      const endDate = new Date(selectedSession.end_date)
-      const now = new Date()
-      const diffTime = endDate.getTime() - now.getTime()
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+      // Only populate metrics if session is in_progress
+      if (selectedSession && selectedSession.status === 'in_progress') {
+        const endDate = new Date(selectedSession.end_date)
+        const now = new Date()
+        const diffTime = endDate.getTime() - now.getTime()
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+        
+        const isParentSession = !selectedSession.parent_session_id
+        
+        metricsData = {
+          progress: isParentSession ? 67 : 45,
+          daysToDeadline: Math.max(0, diffDays),
+          objectives: isParentSession ? 12 : 4,
+          objectivesHit: isParentSession ? 3 : 1,
+          keyResults: isParentSession ? 36 : 12,
+          keyResultsHit: isParentSession ? 8 : 2,
+          keyResultsGoingWell: isParentSession ? 20 : 7,
+          keyResultsInDanger: isParentSession ? 8 : 3,
+          dynamicKeyResults: isParentSession ? 18 : 6,
+          manualKeyResults: isParentSession ? 18 : 6
+        }
+      }
       
-      // Mock metrics data - in real app, fetch from OKR tables based on selected session
-      const isParentSession = !selectedSession.parent_session_id
-      
-      setMetrics({
-        progress: isParentSession ? 67 : 45,
-        daysToDeadline: Math.max(0, diffDays),
-        objectives: isParentSession ? 12 : 4,
-        objectivesHit: isParentSession ? 3 : 1,
-        keyResults: isParentSession ? 36 : 12,
-        keyResultsHit: isParentSession ? 8 : 2,
-        keyResultsGoingWell: isParentSession ? 20 : 7,
-        keyResultsInDanger: isParentSession ? 8 : 3,
-        dynamicKeyResults: isParentSession ? 18 : 6,
-        manualKeyResults: isParentSession ? 18 : 6
-      })
+      setMetrics(metricsData)
     } catch (error) {
       console.error('Error calculating metrics:', error)
     } finally {
@@ -233,9 +244,10 @@ export default function DashboardPage() {
               onChange={(e) => handleSessionChange(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 appearance-none"
             >
+              <option value="">Select a session...</option>
               {availableSessions.map((session) => (
                 <option key={session.id} value={session.id}>
-                  {session.name} ({formatDateRange(session.start_date, session.end_date)})
+                  {session.name} ({formatDateRange(session.start_date, session.end_date)}) - {session.status === 'in_progress' ? 'In Progress' : 'Open'}
                 </option>
               ))}
             </select>
@@ -243,154 +255,176 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {selectedSession ? (
-          <div className="space-y-8">
-            {/* Current Session Info */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        {/* Current Session Info */}
+        <div className="mb-8">
+          {!selectedSession ? (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-medium text-blue-900">Current Session</h3>
-                  <p className="text-blue-800">{selectedSession.name}</p>
-                  <p className="text-xs text-blue-600">
+                  <h3 className="text-sm font-medium text-gray-900">Current Session</h3>
+                  <p className="text-gray-600">No active (In Progress) session has been selected</p>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-gray-400">0%</div>
+                  <div className="text-xs text-gray-500">Progress</div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className={`border rounded-lg p-4 ${
+              selectedSession.status === 'in_progress' 
+                ? 'bg-blue-50 border-blue-200' 
+                : 'bg-yellow-50 border-yellow-200'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className={`text-sm font-medium ${
+                    selectedSession.status === 'in_progress' 
+                      ? 'text-blue-900' 
+                      : 'text-yellow-900'
+                  }`}>Current Session</h3>
+                  <p className={`${
+                    selectedSession.status === 'in_progress' 
+                      ? 'text-blue-800' 
+                      : 'text-yellow-800'
+                  }`}>{selectedSession.name} {selectedSession.status === 'open' ? '- Not Active' : ''}</p>
+                  <p className={`text-xs ${
+                    selectedSession.status === 'in_progress' 
+                      ? 'text-blue-600' 
+                      : 'text-yellow-600'
+                  }`}>
                     {formatDateRange(selectedSession.start_date, selectedSession.end_date)}
                   </p>
                 </div>
                 <div className="text-right">
-                  <div className="text-2xl font-bold text-blue-900">{metrics.progress}%</div>
-                  <div className="text-xs text-blue-600">Progress</div>
+                  <div className={`text-2xl font-bold ${
+                    selectedSession.status === 'in_progress' 
+                      ? 'text-blue-900' 
+                      : 'text-yellow-600'
+                  }`}>{metrics.progress}%</div>
+                  <div className={`text-xs ${
+                    selectedSession.status === 'in_progress' 
+                      ? 'text-blue-600' 
+                      : 'text-yellow-600'
+                  }`}>Progress</div>
                 </div>
               </div>
             </div>
+          )}
+        </div>
 
-            {/* Metrics Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-              <MetricCard
-                title="Progress"
-                value={metrics.progress}
-                subtitle={`The mean progress of Objectives within the session (with 65.11% of time passed).`}
-                color="blue"
-                href="/okrs"
-              />
-              
-              <MetricCard
-                title="Days to deadline"
-                value={metrics.daysToDeadline}
-                subtitle={`This session's deadline is ${formatDateRange(selectedSession.end_date, selectedSession.end_date).split(' - ')[1]}.`}
-                color="orange"
-                href="/sessions"
-              />
-              
-              <MetricCard
-                title="Objectives"
-                value={metrics.objectives}
-                subtitle="Total number of Objectives within the session."
-                color="blue"
-                href="/okrs"
-              />
-              
-              <MetricCard
-                title="Objectives hit"
-                value={metrics.objectivesHit}
-                subtitle="Total number of Objectives achieved so far."
-                color="green"
-                href="/okrs"
-              />
-              
-              <MetricCard
-                title="Key Results"
-                value={metrics.keyResults}
-                subtitle="Total number of Key Results within the session."
-                color="blue"
-                href="/okrs"
-              />
-              
-              <MetricCard
-                title="Key Results hit"
-                value={metrics.keyResultsHit}
-                subtitle="Total number of Key Results achieved so far."
-                color="green"
-                href="/okrs"
-              />
-              
-              <MetricCard
-                title="Key Results going well"
-                value={metrics.keyResultsGoingWell}
-                subtitle="Total number of Key Results that are likely to be achieved."
-                color="green"
-                href="/okrs"
-              />
-              
-              <MetricCard
-                title="Key Results in danger"
-                value={metrics.keyResultsInDanger}
-                subtitle="Total number of Key Results that are not on track to be achieved."
-                color="red"
-                href="/okrs"
-              />
-              
-              <MetricCard
-                title="Dynamic Key Results"
-                value={metrics.dynamicKeyResults}
-                subtitle="Total number of Key Results that are automatically updated."
-                color="blue"
-                href="/okrs"
-              />
-              
-              <MetricCard
-                title="Manual Key Results"
-                value={metrics.manualKeyResults}
-                subtitle="Total number of Key Results that are manually updated."
-                color="blue"
-                href="/okrs"
-              />
-            </div>
+        {/* Metrics Grid - Always Show */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+          <MetricCard
+            title="Progress"
+            value={metrics.progress}
+            subtitle={`The mean progress of Objectives within the session (with 65.11% of time passed).`}
+            color="blue"
+            href="/okrs"
+          />
+          
+          <MetricCard
+            title="Days to deadline"
+            value={metrics.daysToDeadline}
+            subtitle={selectedSession ? `This session's deadline is ${formatDateRange(selectedSession.end_date, selectedSession.end_date).split(' - ')[1]}.` : "No session selected"}
+            color="orange"
+            href="/sessions"
+          />
+          
+          <MetricCard
+            title="Objectives"
+            value={metrics.objectives}
+            subtitle="Total number of Objectives within the session."
+            color="blue"
+            href="/okrs"
+          />
+          
+          <MetricCard
+            title="Objectives hit"
+            value={metrics.objectivesHit}
+            subtitle="Total number of Objectives achieved so far."
+            color="green"
+            href="/okrs"
+          />
+          
+          <MetricCard
+            title="Key Results"
+            value={metrics.keyResults}
+            subtitle="Total number of Key Results within the session."
+            color="blue"
+            href="/okrs"
+          />
+          
+          <MetricCard
+            title="Key Results hit"
+            value={metrics.keyResultsHit}
+            subtitle="Total number of Key Results achieved so far."
+            color="green"
+            href="/okrs"
+          />
+          
+          <MetricCard
+            title="Key Results going well"
+            value={metrics.keyResultsGoingWell}
+            subtitle="Total number of Key Results that are likely to be achieved."
+            color="green"
+            href="/okrs"
+          />
+          
+          <MetricCard
+            title="Key Results in danger"
+            value={metrics.keyResultsInDanger}
+            subtitle="Total number of Key Results that are not on track to be achieved."
+            color="red"
+            href="/okrs"
+          />
+          
+          <MetricCard
+            title="Dynamic Key Results"
+            value={metrics.dynamicKeyResults}
+            subtitle="Total number of Key Results that are automatically updated."
+            color="blue"
+            href="/okrs"
+          />
+          
+          <MetricCard
+            title="Manual Key Results"
+            value={metrics.manualKeyResults}
+            subtitle="Total number of Key Results that are manually updated."
+            color="blue"
+            href="/okrs"
+          />
+        </div>
 
-            {/* Quick Actions */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Link href="/okrs" className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                  <Target className="h-8 w-8 text-blue-600 mr-3" />
-                  <div>
-                    <div className="font-medium text-gray-900">View OKRs</div>
-                    <div className="text-sm text-gray-500">Manage objectives and key results</div>
-                  </div>
-                </Link>
-                
-                <Link href="/sessions" className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                  <Calendar className="h-8 w-8 text-green-600 mr-3" />
-                  <div>
-                    <div className="font-medium text-gray-900">Manage Sessions</div>
-                    <div className="text-sm text-gray-500">Create and organize time periods</div>
-                  </div>
-                </Link>
-                
-                <Link href="/reports" className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                  <TrendingUp className="h-8 w-8 text-purple-600 mr-3" />
-                  <div>
-                    <div className="font-medium text-gray-900">View Reports</div>
-                    <div className="text-sm text-gray-500">Analyze performance and progress</div>
-                  </div>
-                </Link>
+        {/* Quick Actions - Always Show */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Link href="/okrs" className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              <Target className="h-8 w-8 text-blue-600 mr-3" />
+              <div>
+                <div className="font-medium text-gray-900">View OKRs</div>
+                <div className="text-sm text-gray-500">Manage objectives and key results</div>
               </div>
-            </div>
-          </div>
-        ) : (
-          <div className="bg-white rounded-lg p-12 text-center">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Target className="h-8 w-8 text-gray-400" />
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Active Session</h3>
-            <p className="text-gray-500 mb-6">Create or activate a session to start tracking your OKRs.</p>
-            <Link 
-              href="/sessions"
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
-            >
-              <Calendar className="h-4 w-4 mr-2" />
-              Manage Sessions
+            </Link>
+            
+            <Link href="/sessions" className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              <Calendar className="h-8 w-8 text-green-600 mr-3" />
+              <div>
+                <div className="font-medium text-gray-900">Manage Sessions</div>
+                <div className="text-sm text-gray-500">Create and organize time periods</div>
+              </div>
+            </Link>
+            
+            <Link href="/reports" className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              <TrendingUp className="h-8 w-8 text-purple-600 mr-3" />
+              <div>
+                <div className="font-medium text-gray-900">View Reports</div>
+                <div className="text-sm text-gray-500">Analyze performance and progress</div>
+              </div>
             </Link>
           </div>
-        )}
+        </div>
       </div>
     </AuthenticatedLayout>
   )
