@@ -36,13 +36,18 @@ const SessionsTimeline = ({ sessions, onEditSession, onDeleteSession, onStatusUp
     isOpen: false,
     session: null
   })
+  const [dropdownOpen, setDropdownOpen] = useState<string | null>(null)
 
-  // Group sessions by year and sort by start date
+  // Group sessions by year using corrected date parsing
   const sessionsByYear = sessions
     .filter(session => !session.parent_session_id) // Only parent sessions
     .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()) // Future dates at bottom
     .reduce((acc, session) => {
-      const year = new Date(session.start_date).getFullYear()
+      // Fix timezone offset before getting year
+      const startDate = new Date(session.start_date)
+      startDate.setMinutes(startDate.getMinutes() + startDate.getTimezoneOffset())
+      const year = startDate.getFullYear()
+      
       if (!acc[year]) acc[year] = []
       acc[year].push(session)
       return acc
@@ -95,17 +100,32 @@ const SessionsTimeline = ({ sessions, onEditSession, onDeleteSession, onStatusUp
     }
   }
 
-  // Calculate session position on timeline
+  // Calculate session position on timeline - Fixed calculation
   const getSessionPosition = (startDate: string, endDate: string, year: number) => {
-    const yearStart = new Date(year, 0, 1).getTime()
-    const yearEnd = new Date(year, 11, 31).getTime()
-    const sessionStart = new Date(startDate).getTime()
-    const sessionEnd = new Date(endDate).getTime()
-
-    const left = ((sessionStart - yearStart) / (yearEnd - yearStart)) * 100
-    const width = ((sessionEnd - sessionStart) / (yearEnd - yearStart)) * 100
-
-    return { left: `${Math.max(0, left)}%`, width: `${Math.min(100, width)}%` }
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    
+    // Apply timezone offset correction
+    start.setMinutes(start.getMinutes() + start.getTimezoneOffset())
+    end.setMinutes(end.getMinutes() + end.getTimezoneOffset())
+    
+    const yearStart = new Date(year, 0, 1)
+    const yearEnd = new Date(year, 11, 31, 23, 59, 59)
+    
+    const yearDuration = yearEnd.getTime() - yearStart.getTime()
+    const sessionStart = Math.max(start.getTime(), yearStart.getTime())
+    const sessionEnd = Math.min(end.getTime(), yearEnd.getTime())
+    
+    const startOffset = sessionStart - yearStart.getTime()
+    const sessionDuration = sessionEnd - sessionStart
+    
+    const leftPercent = (startOffset / yearDuration) * 100
+    const widthPercent = (sessionDuration / yearDuration) * 100
+    
+    return { 
+      left: `${Math.max(0, leftPercent)}%`, 
+      width: `${Math.max(0, widthPercent)}%` 
+    }
   }
 
   // Get current date position for indicator line
@@ -193,9 +213,36 @@ const SessionsTimeline = ({ sessions, onEditSession, onDeleteSession, onStatusUp
                           {getStatusDisplayText(parentSession.status)}
                         </button>
                         <div className="relative flex-shrink-0">
-                          <button className="text-gray-400 hover:text-gray-600 p-1">
+                          <button 
+                            onClick={() => setDropdownOpen(dropdownOpen === parentSession.id ? null : parentSession.id)}
+                            className="text-gray-400 hover:text-gray-600 p-1"
+                          >
                             <MoreHorizontal className="h-4 w-4" />
                           </button>
+                          {dropdownOpen === parentSession.id && (
+                            <div className="absolute right-0 mt-2 w-32 bg-white rounded-md shadow-lg z-50 border border-gray-200">
+                              <button
+                                onClick={() => {
+                                  onEditSession(parentSession)
+                                  setDropdownOpen(null)
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                              >
+                                <Edit className="h-4 w-4 mr-2" />
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => {
+                                  onDeleteSession(parentSession.id)
+                                  setDropdownOpen(null)
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 flex items-center"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -237,9 +284,36 @@ const SessionsTimeline = ({ sessions, onEditSession, onDeleteSession, onStatusUp
                                 {getStatusDisplayText(childSession.status)}
                               </button>
                               <div className="relative flex-shrink-0">
-                                <button className="text-gray-400 hover:text-gray-600 p-1">
+                                <button 
+                                  onClick={() => setDropdownOpen(dropdownOpen === childSession.id ? null : childSession.id)}
+                                  className="text-gray-400 hover:text-gray-600 p-1"
+                                >
                                   <MoreHorizontal className="h-4 w-4" />
                                 </button>
+                                {dropdownOpen === childSession.id && (
+                                  <div className="absolute right-0 mt-2 w-32 bg-white rounded-md shadow-lg z-50 border border-gray-200">
+                                    <button
+                                      onClick={() => {
+                                        onEditSession(childSession)
+                                        setDropdownOpen(null)
+                                      }}
+                                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                                    >
+                                      <Edit className="h-4 w-4 mr-2" />
+                                      Edit
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        onDeleteSession(childSession.id)
+                                        setDropdownOpen(null)
+                                      }}
+                                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 flex items-center"
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Delete
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -320,6 +394,7 @@ const SessionsList = ({ sessions, onEditSession, onDeleteSession, onStatusUpdate
     isOpen: false,
     session: null
   })
+  const [dropdownOpen, setDropdownOpen] = useState<string | null>(null)
 
   // Format date to prevent timezone offset display issues
   const formatDate = (dateString: string) => {
@@ -382,60 +457,118 @@ const SessionsList = ({ sessions, onEditSession, onDeleteSession, onStatusUpdate
             return (
               <div key={parentSession.id} className="border-b border-gray-100 pb-4 last:border-b-0 last:pb-0">
                 {/* Parent Session */}
-                <div className="flex items-center justify-between py-3">
-                  <div className="flex items-center space-x-3 min-w-0">
+                <div className="flex items-center py-3">
+                  <div className="flex items-center space-x-3 min-w-0 flex-1">
                     <div 
                       className="w-4 h-4 rounded-full flex-shrink-0" 
                       style={{ backgroundColor: parentSession.color }}
                     />
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="font-medium text-gray-900 truncate">{parentSession.name}</div>
                       <div className="text-sm text-gray-500">
                         {formatDate(parentSession.start_date)} - {formatDate(parentSession.end_date)}
                       </div>
                     </div>
-                    
+                  </div>
+                  
+                  <div className="flex items-center space-x-3">
                     <button
                       onClick={() => setStatusEditModal({ isOpen: true, session: parentSession })}
-                      className={`px-2 py-1 text-xs rounded-full ${getStatusColor(parentSession.status)} hover:opacity-75 transition-opacity flex-shrink-0 ml-4`}
+                      className={`px-2 py-1 text-xs rounded-full ${getStatusColor(parentSession.status)} hover:opacity-75 transition-opacity`}
                     >
                       {getStatusDisplayText(parentSession.status)}
                     </button>
                     
-                    <div className="relative flex-shrink-0">
-                      <button className="text-gray-400 hover:text-gray-600 p-1">
+                    <div className="relative">
+                      <button 
+                        onClick={() => setDropdownOpen(dropdownOpen === parentSession.id ? null : parentSession.id)}
+                        className="text-gray-400 hover:text-gray-600 p-1"
+                      >
                         <MoreHorizontal className="h-4 w-4" />
                       </button>
+                      {dropdownOpen === parentSession.id && (
+                        <div className="absolute right-0 mt-2 w-32 bg-white rounded-md shadow-lg z-50 border border-gray-200">
+                          <button
+                            onClick={() => {
+                              onEditSession(parentSession)
+                              setDropdownOpen(null)
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => {
+                              onDeleteSession(parentSession.id)
+                              setDropdownOpen(null)
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 flex items-center"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
 
                 {/* Child Sessions */}
                 {childSessions.map((childSession) => (
-                  <div key={childSession.id} className="flex items-center justify-between py-2 ml-8">
-                    <div className="flex items-center space-x-3 min-w-0">
+                  <div key={childSession.id} className="flex items-center py-2 ml-8">
+                    <div className="flex items-center space-x-3 min-w-0 flex-1">
                       <div 
                         className="w-3 h-3 rounded-full flex-shrink-0" 
                         style={{ backgroundColor: childSession.color }}
                       />
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="text-sm text-gray-700 truncate">{childSession.name}</div>
                         <div className="text-xs text-gray-500">
                           {formatDate(childSession.start_date)} - {formatDate(childSession.end_date)}
                         </div>
                       </div>
-                      
+                    </div>
+                    
+                    <div className="flex items-center space-x-3">
                       <button
                         onClick={() => setStatusEditModal({ isOpen: true, session: childSession })}
-                        className={`px-2 py-1 text-xs rounded-full ${getStatusColor(childSession.status)} hover:opacity-75 transition-opacity flex-shrink-0 ml-4`}
+                        className={`px-2 py-1 text-xs rounded-full ${getStatusColor(childSession.status)} hover:opacity-75 transition-opacity`}
                       >
                         {getStatusDisplayText(childSession.status)}
                       </button>
                       
-                      <div className="relative flex-shrink-0">
-                        <button className="text-gray-400 hover:text-gray-600 p-1">
+                      <div className="relative">
+                        <button 
+                          onClick={() => setDropdownOpen(dropdownOpen === childSession.id ? null : childSession.id)}
+                          className="text-gray-400 hover:text-gray-600 p-1"
+                        >
                           <MoreHorizontal className="h-4 w-4" />
                         </button>
+                        {dropdownOpen === childSession.id && (
+                          <div className="absolute right-0 mt-2 w-32 bg-white rounded-md shadow-lg z-50 border border-gray-200">
+                            <button
+                              onClick={() => {
+                                onEditSession(childSession)
+                                setDropdownOpen(null)
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                            >
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => {
+                                onDeleteSession(childSession.id)
+                                setDropdownOpen(null)
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 flex items-center"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
