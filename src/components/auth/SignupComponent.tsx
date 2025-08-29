@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
-import { useRouter } from 'next/navigation'
 
 interface SignupComponentProps {
   invitationToken?: string
@@ -27,8 +26,6 @@ export default function SignupComponent({
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [isInvitation] = useState(!!invitationToken)
-
-  const router = useRouter()
   
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -52,18 +49,6 @@ export default function SignupComponent({
     return !error && data
   }
 
-  // Generate unique slug
-  const generateUniqueSlug = (name: string) => {
-    const baseSlug = name.toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .trim()
-    
-    const randomBytes = new Uint8Array(4)
-    crypto.getRandomValues(randomBytes)
-    const randomSuffix = Array.from(randomBytes, byte => byte.toString(36)).join('')
-    return `${baseSlug}-${randomSuffix}`
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -94,7 +79,7 @@ export default function SignupComponent({
       }
 
       // Store metadata for later use in onboarding
-      const metadata: any = {
+      const metadata: Record<string, string> = {
         full_name: fullName
       }
 

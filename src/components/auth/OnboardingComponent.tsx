@@ -26,7 +26,7 @@ export default function OnboardingComponent({
   const [organizationName, setOrganizationName] = useState('')
   const [organizationId, setOrganizationId] = useState('')
   const [companyWebsite, setCompanyWebsite] = useState('')
-  const [suggestedOrg, setSuggestedOrg] = useState<any>(null)
+  const [suggestedOrg, setSuggestedOrg] = useState<{id: string, name: string} | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [checkingOrg, setCheckingOrg] = useState(true)
@@ -36,7 +36,7 @@ export default function OnboardingComponent({
 
   useEffect(() => {
     checkForExistingOrganization()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const checkForExistingOrganization = async () => {
     setCheckingOrg(true)
@@ -301,7 +301,7 @@ export default function OnboardingComponent({
             {prefilledData.organization_id ? (
               <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
                 <p className="text-sm text-blue-800">
-                  You've been invited to join <strong>{organizationName}</strong>
+                  You&apos;ve been invited to join <strong>{organizationName}</strong>
                 </p>
               </div>
             ) : (
@@ -368,7 +368,7 @@ export default function OnboardingComponent({
                     <div className="flex-1">
                       <p className="font-medium">Create New Organization</p>
                       <p className="text-sm text-gray-600 mb-2">
-                        You'll be the admin of this organization
+                        You&apos;ll be the admin of this organization
                       </p>
                       {organizationChoice === 'new' && (
                         <>

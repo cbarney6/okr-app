@@ -60,7 +60,7 @@ const SessionsTimeline = ({ sessions, onEditSession, onDeleteSession, onStatusUp
       .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
   }
 
-  // Format date to prevent timezone offset display issues
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     date.setMinutes(date.getMinutes() + date.getTimezoneOffset())
@@ -396,7 +396,6 @@ const SessionsList = ({ sessions, onEditSession, onDeleteSession, onStatusUpdate
   })
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null)
 
-  // Format date to prevent timezone offset display issues
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     date.setMinutes(date.getMinutes() + date.getTimezoneOffset())
@@ -406,6 +405,7 @@ const SessionsList = ({ sessions, onEditSession, onDeleteSession, onStatusUpdate
       year: 'numeric'
     })
   }
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -637,7 +637,7 @@ export default function SessionsTimelinePage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  const getCurrentUserOrgId = async (): Promise<string | null> => {
+  const getCurrentUserOrgId = useCallback(async (): Promise<string | null> => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return null
@@ -653,7 +653,7 @@ export default function SessionsTimelinePage() {
       console.error('Error getting user org ID:', error)
       return null
     }
-  }
+  }, [supabase])
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -673,7 +673,7 @@ export default function SessionsTimelinePage() {
     } finally {
       setLoading(false)
     }
-  }, [supabase])
+  }, [supabase, getCurrentUserOrgId])
 
   const handleStatusUpdate = async (sessionId: string, newStatus: 'open' | 'in_progress' | 'archived') => {
     try {
