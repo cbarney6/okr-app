@@ -11,17 +11,22 @@ export async function GET(request: NextRequest) {
 
   const supabase = await createClient()
 
-  // Handle PKCE flow (newer Supabase email confirmations)
-  if (token && type === 'signup') {
-    const { error } = await supabase.auth.exchangeCodeForSession(token)
+  console.log('Auth confirm params:', { token: token?.substring(0, 20), token_hash: token_hash?.substring(0, 20), type, next })
+
+  // Handle both PKCE tokens and legacy token_hash
+  if (token && type) {
+    // For PKCE tokens, use verifyOtp with token_hash set to the token value
+    const { error } = await supabase.auth.verifyOtp({
+      type,
+      token_hash: token,
+    })
     
     if (!error) {
-      // User is now confirmed and logged in
+      console.log('Email confirmation successful, redirecting to:', next)
       return NextResponse.redirect(new URL(next, request.url))
     }
     
-    console.error('PKCE verification error:', error)
-    return NextResponse.redirect(new URL('/auth/auth-code-error', request.url))
+    console.error('PKCE token verification error:', error)
   }
 
   // Handle legacy OTP flow (older Supabase email confirmations)
@@ -32,12 +37,14 @@ export async function GET(request: NextRequest) {
     })
 
     if (!error) {
+      console.log('Legacy OTP confirmation successful, redirecting to:', next)
       return NextResponse.redirect(new URL(next, request.url))
     }
     
-    console.error('OTP verification error:', error)
+    console.error('Legacy OTP verification error:', error)
   }
 
+  console.error('No valid token found, redirecting to error page')
   // redirect the user to an error page with instructions
   return NextResponse.redirect(new URL('/auth/auth-code-error', request.url))
 }
