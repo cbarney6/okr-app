@@ -3,48 +3,77 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const token = searchParams.get('token')
-  const token_hash = searchParams.get('token_hash')
-  const type = searchParams.get('type') as EmailOtpType | null
-  const next = searchParams.get('redirect_to') ?? '/onboarding'
-
-  const supabase = await createClient()
-
-  console.log('Auth confirm params:', { token: token?.substring(0, 20), token_hash: token_hash?.substring(0, 20), type, next })
-
-  // Handle both PKCE tokens and legacy token_hash
-  if (token && type) {
-    // For PKCE tokens, use verifyOtp with token_hash set to the token value
-    const { error } = await supabase.auth.verifyOtp({
-      type,
-      token_hash: token,
-    })
+  try {
+    const { searchParams } = new URL(request.url)
+    const token = searchParams.get('token')
+    const token_hash = searchParams.get('token_hash')
+    const type = searchParams.get('type') as EmailOtpType | null
+    const next = searchParams.get('redirect_to') ?? '/onboarding'
     
-    if (!error) {
-      console.log('Email confirmation successful, redirecting to:', next)
-      return NextResponse.redirect(new URL(next, request.url))
-    }
-    
-    console.error('PKCE token verification error:', error)
-  }
-
-  // Handle legacy OTP flow (older Supabase email confirmations)
-  if (token_hash && type) {
-    const { error } = await supabase.auth.verifyOtp({
+    console.log('Auth confirm received:', {
+      url: request.url,
+      token: token ? `${token.substring(0, 20)}...` : null,
+      token_hash: token_hash ? `${token_hash.substring(0, 20)}...` : null,
       type,
-      token_hash,
+      next
     })
 
-    if (!error) {
-      console.log('Legacy OTP confirmation successful, redirecting to:', next)
-      return NextResponse.redirect(new URL(next, request.url))
-    }
-    
-    console.error('Legacy OTP verification error:', error)
-  }
+    const supabase = await createClient()
 
-  console.error('No valid token found, redirecting to error page')
-  // redirect the user to an error page with instructions
-  return NextResponse.redirect(new URL('/auth/auth-code-error', request.url))
+    // For PKCE tokens (modern flow), Supabase sends 'token' parameter
+    if (token && type) {
+      console.log('Attempting PKCE token verification...')
+      
+      // Try different approaches for PKCE token verification
+      try {
+        // Method 1: Use exchangeCodeForSession for PKCE
+        const { data, error: sessionError } = await supabase.auth.exchangeCodeForSession(token)
+        if (!sessionError && data.session) {
+          console.log('PKCE exchangeCodeForSession successful')
+          return NextResponse.redirect(new URL(next, request.url))
+        }
+        console.log('exchangeCodeForSession failed:', sessionError)
+      } catch (e) {
+        console.log('exchangeCodeForSession exception:', e)
+      }
+
+      // Method 2: Use verifyOtp with token as token_hash
+      try {
+        const { error: otpError } = await supabase.auth.verifyOtp({
+          type,
+          token_hash: token,
+        })
+        if (!otpError) {
+          console.log('PKCE verifyOtp successful')
+          return NextResponse.redirect(new URL(next, request.url))
+        }
+        console.log('verifyOtp with token failed:', otpError)
+      } catch (e) {
+        console.log('verifyOtp exception:', e)
+      }
+    }
+
+    // For legacy token_hash (older flow)
+    if (token_hash && type) {
+      console.log('Attempting legacy token_hash verification...')
+      const { error } = await supabase.auth.verifyOtp({
+        type,
+        token_hash,
+      })
+
+      if (!error) {
+        console.log('Legacy token verification successful')
+        return NextResponse.redirect(new URL(next, request.url))
+      }
+      
+      console.error('Legacy token verification error:', error)
+    }
+
+    console.error('All verification methods failed')
+    return NextResponse.redirect(new URL('/auth/auth-code-error', request.url))
+    
+  } catch (error) {
+    console.error('Confirmation route error:', error)
+    return NextResponse.redirect(new URL('/auth/auth-code-error', request.url))
+  }
 }
