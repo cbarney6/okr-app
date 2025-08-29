@@ -113,9 +113,35 @@ export default function InviteUsersModal({ isOpen, onClose, onSuccess }: InviteU
 
     if (error) throw error
 
-    // TODO: Send actual email invitations here
-    // For now, we'll just create the database records
-    // In a real app, you'd integrate with an email service like SendGrid, Resend, etc.
+    // Get organization details for the email
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('name')
+      .eq('id', profile.organization_id)
+      .single()
+
+    // Send invitation emails
+    if (createdInvites && createdInvites.length > 0) {
+      const invitationIds = createdInvites.map(inv => inv.id)
+      
+      // Send emails via API route
+      const response = await fetch('/api/invitations/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invitationIds })
+      })
+
+      if (!response.ok) {
+        console.error('Failed to send some invitation emails')
+      }
+
+      // Alternative: Send invitation links directly to users
+      // This creates signup links with pre-filled organization info
+      for (const invite of createdInvites) {
+        const inviteUrl = `${window.location.origin}/signup?token=${invite.token}&email=${encodeURIComponent(invite.email)}&org=${encodeURIComponent(org?.name || '')}`
+        console.log(`Invitation link for ${invite.email}: ${inviteUrl}`)
+      }
+    }
     
     return createdInvites
   }

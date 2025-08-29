@@ -93,10 +93,13 @@ export default function SignupComponent({
         }
       }
 
-      let organizationId: string
+      // Store metadata for later use in onboarding
+      const metadata: any = {
+        full_name: fullName
+      }
 
       if (isInvitation && invitationToken) {
-        // Handle invitation signup
+        // Handle invitation signup - validate invitation
         const { data: invitation, error: invError } = await supabase
           .from('user_invitations')
           .select('organization_id, expires_at')
@@ -112,72 +115,22 @@ export default function SignupComponent({
           throw new Error('This invitation has expired')
         }
 
-        organizationId = invitation.organization_id
-      } else {
-        // Create new organization for first user
-        const { data: orgData, error: orgError } = await supabase
-          .from('organizations')
-          .insert({
-            name: companyName,
-            slug: generateUniqueSlug(companyName),
-            created_by: null // Will be updated after user creation
-          })
-          .select()
-          .single()
-
-        if (orgError) throw orgError
-        organizationId = orgData.id
+        metadata.organization_id = invitation.organization_id
+        metadata.invitation_token = invitationToken
       }
 
-      // Create user account
+      // Create user account with metadata
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/confirm`,
-          data: {
-            full_name: fullName,
-            organization_id: organizationId
-          }
+          data: metadata
         }
       })
 
       if (authError) throw authError
       if (!authData.user) throw new Error('Failed to create user account')
-
-      // Create profile
-      const userRoles = isInvitation ? ['user'] : ['admin'] // First user is admin
-      
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: authData.user.id,
-          full_name: fullName,
-          email: email,
-          title: title || null,
-          phone: phone || null,
-          company_website: companyWebsite || null,
-          organization_id: organizationId,
-          roles: userRoles
-        })
-
-      if (profileError) throw profileError
-
-      // Update organization created_by if this is the first user
-      if (!isInvitation) {
-        await supabase
-          .from('organizations')
-          .update({ created_by: authData.user.id })
-          .eq('id', organizationId)
-      }
-
-      // Mark invitation as accepted if this was an invitation signup
-      if (isInvitation && invitationToken) {
-        await supabase
-          .from('user_invitations')
-          .update({ accepted_at: new Date().toISOString() })
-          .eq('token', invitationToken)
-      }
 
       // Show success message instead of redirecting
       setSuccess(
