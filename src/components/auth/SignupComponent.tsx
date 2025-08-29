@@ -25,6 +25,7 @@ export default function SignupComponent({
   const [companyWebsite, setCompanyWebsite] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [isInvitation] = useState(!!invitationToken)
 
   const router = useRouter()
@@ -68,6 +69,7 @@ export default function SignupComponent({
     e.preventDefault()
     setLoading(true)
     setError('')
+    setSuccess('')
 
     try {
       // Validation
@@ -132,6 +134,7 @@ export default function SignupComponent({
         email,
         password,
         options: {
+          emailRedirectTo: `${window.location.origin}/auth/confirm`,
           data: {
             full_name: fullName,
             organization_id: organizationId
@@ -176,8 +179,10 @@ export default function SignupComponent({
           .eq('token', invitationToken)
       }
 
-      // Redirect to dashboard
-      router.push('/dashboard')
+      // Show success message instead of redirecting
+      setSuccess(
+        `Account created successfully! Please check your email (${email}) for a confirmation link to complete your registration.`
+      )
 
     } catch (err) {
       console.error('Signup error:', err)
@@ -205,6 +210,12 @@ export default function SignupComponent({
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
             {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+            {success}
           </div>
         )}
 
