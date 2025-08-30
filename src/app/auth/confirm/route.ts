@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const token = searchParams.get('token')
     const token_hash = searchParams.get('token_hash')
+    const code = searchParams.get('code')
     const type = searchParams.get('type') as EmailOtpType | null
     const next = searchParams.get('redirect_to') ?? '/onboarding'
     
@@ -14,6 +15,7 @@ export async function GET(request: NextRequest) {
       url: request.url,
       token: token ? `${token.substring(0, 20)}...` : null,
       token_hash: token_hash ? `${token_hash.substring(0, 20)}...` : null,
+      code: code ? `${code.substring(0, 20)}...` : null,
       type,
       next
     })
@@ -35,7 +37,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL(next, request.url))
     }
 
-    // For PKCE tokens (modern flow), Supabase sends 'token' parameter
+    // For authorization code flow (modern Supabase), use the 'code' parameter
+    if (code) {
+      console.log('Attempting authorization code exchange...')
+      try {
+        const { data, error: codeError } = await supabase.auth.exchangeCodeForSession(code)
+        if (!codeError && data.session) {
+          console.log('Authorization code exchange successful')
+          return NextResponse.redirect(new URL(next, request.url))
+        }
+        console.log('Authorization code exchange failed:', codeError)
+      } catch (e) {
+        console.log('Authorization code exchange exception:', e)
+      }
+    }
+
+    // For PKCE tokens (legacy flow), Supabase sends 'token' parameter
     if (token && type) {
       console.log('Attempting PKCE token verification...')
       
