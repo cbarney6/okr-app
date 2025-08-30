@@ -98,13 +98,16 @@ export default function NavigationSidebar({ currentPage = 'dashboard' }: Navigat
       </nav>
 
       {/* User Profile Section - Fixed at bottom */}
-      <div className="border-t border-gray-200 p-3 relative">
-        <div 
-          className="flex items-center space-x-3 relative"
-          onMouseEnter={() => setShowUserMenu(true)}
-          onMouseLeave={() => setShowUserMenu(false)}
-        >
-          <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-white font-medium text-sm flex-shrink-0 cursor-pointer hover:bg-yellow-600 transition-colors">
+      <div 
+        className="border-t border-gray-200 p-3 relative"
+        onMouseEnter={() => setShowUserMenu(true)}
+        onMouseLeave={() => setShowUserMenu(false)}
+      >
+        <div className="flex items-center space-x-3 relative">
+          <div 
+            className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-white font-medium text-sm flex-shrink-0 cursor-pointer hover:bg-yellow-600 transition-colors"
+            title=""
+          >
             CB
           </div>
           <div className={`transition-all duration-300 ${
@@ -113,27 +116,30 @@ export default function NavigationSidebar({ currentPage = 'dashboard' }: Navigat
             <p className="text-sm font-medium text-gray-900">Chris Barney</p>
             <p className="text-xs text-gray-500">cbarney6@gmail.com</p>
           </div>
-          
-          {/* Hover Menu */}
-          {showUserMenu && (
-            <div className="absolute bottom-full left-0 mb-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50">
-              <button
-                onClick={() => router.push('/profile')}
-                className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-              >
-                <User className="h-4 w-4 mr-3" />
-                Edit Profile
-              </button>
-              <button
-                onClick={handleSignOut}
-                className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-              >
-                <LogOut className="h-4 w-4 mr-3" />
-                Sign Out
-              </button>
-            </div>
-          )}
         </div>
+        
+        {/* Hover Menu - positioned outside the flex container */}
+        {showUserMenu && (
+          <div 
+            className="absolute bottom-full left-0 mb-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1"
+            style={{ zIndex: 9999 }}
+          >
+            <button
+              onClick={() => router.push('/profile')}
+              className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left"
+            >
+              <User className="h-4 w-4 mr-3" />
+              Edit Profile
+            </button>
+            <button
+              onClick={handleSignOut}
+              className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left"
+            >
+              <LogOut className="h-4 w-4 mr-3" />
+              Sign Out
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   )
