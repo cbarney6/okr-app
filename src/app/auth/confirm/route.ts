@@ -20,6 +20,14 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createClient()
 
+    // Check if user is already authenticated (from Supabase /verify redirect)
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (user) {
+      console.log('User already authenticated, redirecting to onboarding')
+      return NextResponse.redirect(new URL(next, request.url))
+    }
+
     // For PKCE tokens (modern flow), Supabase sends 'token' parameter
     if (token && type) {
       console.log('Attempting PKCE token verification...')
