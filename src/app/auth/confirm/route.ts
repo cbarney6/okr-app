@@ -21,7 +21,14 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
 
     // Check if user is already authenticated (from Supabase /verify redirect)
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user }, error: getUserError } = await supabase.auth.getUser()
+    
+    console.log('User check result:', {
+      hasUser: !!user,
+      userId: user?.id,
+      userEmail: user?.email,
+      getUserError: getUserError?.message
+    })
     
     if (user) {
       console.log('User already authenticated, redirecting to onboarding')
