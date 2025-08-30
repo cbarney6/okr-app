@@ -109,13 +109,17 @@ export default function OnboardingComponent({
         }
 
         // Check if organization already exists
-        const { data: existingOrg } = await supabase
+        const { data: existingOrgs, error: checkError } = await supabase
           .from('organizations')
           .select('id')
           .ilike('name', organizationName)
-          .single()
         
-        if (existingOrg) {
+        // If there's an error other than "no rows", throw it
+        if (checkError && checkError.code !== 'PGRST116') {
+          throw checkError
+        }
+        
+        if (existingOrgs && existingOrgs.length > 0) {
           throw new Error('An organization with this name already exists')
         }
 
