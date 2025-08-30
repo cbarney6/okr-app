@@ -30,7 +30,7 @@ export default function AuthButton() {
       (event, session) => {
         setUser(session?.user ?? null)
         if (event === 'SIGNED_IN') {
-          router.refresh()
+          router.push('/dashboard')
         }
       }
     )
@@ -76,12 +76,33 @@ export default function AuthButton() {
   // If user is authenticated, show sign out button only
   if (user) {
     return (
-      <button
-        onClick={signOut}
-        className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
-      >
-        Sign Out
-      </button>
+      <div className="flex flex-col items-center gap-4">
+        <button
+          onClick={signOut}
+          className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+        >
+          Sign Out
+        </button>
+        
+        {/* Quick testing links for authenticated users */}
+        <div className="pt-4 border-t border-gray-200">
+          <p className="text-xs text-gray-500 mb-2">Quick Testing Links:</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
+            >
+              Dashboard
+            </button>
+            <button
+              onClick={() => router.push('/onboarding')}
+              className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
+            >
+              Onboarding
+            </button>
+          </div>
+        </div>
+      </div>
     )
   }
 
@@ -143,6 +164,25 @@ export default function AuthButton() {
           </div>
         )}
       </form>
+      
+      {/* Quick testing links */}
+      <div className="mt-4 pt-4 border-t border-gray-200">
+        <p className="text-xs text-gray-500 mb-2">Quick Testing Links:</p>
+        <div className="flex gap-2">
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
+          >
+            Dashboard
+          </button>
+          <button
+            onClick={() => router.push('/onboarding')}
+            className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
+          >
+            Onboarding
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

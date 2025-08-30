@@ -25,6 +25,8 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@previewjs/config-helper-nextjs": "^1.0.29",
+    "@previewjs/plugin-react": "^17.1.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
