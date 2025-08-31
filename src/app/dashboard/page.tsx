@@ -37,6 +37,8 @@ interface MetricCardProps {
 }
 
 const MetricCard = ({ title, value, subtitle, color, href }: MetricCardProps) => {
+  const [showTooltip, setShowTooltip] = useState(false)
+  
   const colorClasses = {
     blue: 'text-blue-600',
     orange: 'text-orange-600', 
@@ -45,23 +47,31 @@ const MetricCard = ({ title, value, subtitle, color, href }: MetricCardProps) =>
   }
 
   const content = (
-    <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow group h-32">
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <div className={`text-3xl font-bold mb-1 ${colorClasses[color]}`}>
+    <div 
+      className="relative bg-white rounded-lg border border-gray-200 p-4 hover:shadow-lg transition-all duration-200 group h-28"
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+    >
+      <div className="flex flex-col h-full justify-between">
+        <div>
+          <div className={`text-3xl font-bold ${colorClasses[color]}`}>
             {value}
           </div>
-          <div className="text-sm font-medium text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
+          <div className="text-sm font-medium text-gray-900 mt-1 group-hover:text-blue-600 transition-colors">
             {title}
           </div>
         </div>
       </div>
-      <div 
-        className="text-xs text-gray-500 leading-tight"
-        title={subtitle}
-      >
-        {subtitle.length > 80 ? `${subtitle.substring(0, 80)}...` : subtitle}
-      </div>
+      
+      {/* Tooltip */}
+      {showTooltip && subtitle && (
+        <div className="absolute z-50 bottom-full left-0 right-0 mb-2 p-2 bg-gray-900 text-white text-xs rounded-lg shadow-xl">
+          <div className="relative">
+            {subtitle}
+            <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+          </div>
+        </div>
+      )}
     </div>
   )
 
@@ -238,20 +248,24 @@ export default function DashboardPage() {
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Session Filter
           </label>
-          <div className="relative w-80">
+          <div className="relative max-w-md">
             <select
               value={selectedSessionId}
               onChange={(e) => handleSessionChange(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 appearance-none"
+              className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 appearance-none text-sm truncate"
+              title={selectedSessionId ? availableSessions.find(s => s.id === selectedSessionId)?.name : ''}
             >
               <option value="">Select a session...</option>
-              {availableSessions.map((session) => (
-                <option key={session.id} value={session.id}>
-                  {session.name} ({formatDateRange(session.start_date, session.end_date)}) - {session.status === 'in_progress' ? 'In Progress' : 'Open'}
-                </option>
-              ))}
+              {availableSessions.map((session) => {
+                const label = `${session.name} (${formatDateRange(session.start_date, session.end_date).split(' - ').join(' to ')}) - ${session.status === 'in_progress' ? 'In Progress' : 'Open'}`
+                return (
+                  <option key={session.id} value={session.id} title={label}>
+                    {label}
+                  </option>
+                )
+              })}
             </select>
-            <ChevronDown className="h-4 w-4 text-gray-400 absolute right-3 top-3 pointer-events-none" />
+            <ChevronDown className="h-4 w-4 text-gray-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
           </div>
         </div>
 
