@@ -239,7 +239,7 @@ export default function InviteUsersModal({ isOpen, onClose, onSuccess }: InviteU
               value={emails}
               onChange={(e) => setEmails(e.target.value)}
               placeholder="example@mail.com, user@company.com"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder:text-gray-400"
               required
             />
           </div>
@@ -252,7 +252,7 @@ export default function InviteUsersModal({ isOpen, onClose, onSuccess }: InviteU
               id="role"
               value={role}
               onChange={(e) => setRole(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
             >
               <option value="user">User</option>
               <option value="admin">Admin</option>

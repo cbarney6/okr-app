@@ -64,9 +64,11 @@ export default function Home() {
         <div className="flex-1 flex items-center justify-center px-8 py-16">
           <div className="max-w-xl">
             <div className="mb-8">
-              <h1 className="text-5xl font-bold text-gray-900 mb-4">
-                Strategic OKR Management
-                <span className="block text-3xl text-blue-600 mt-2">For Growing Organizations</span>
+              <h1 className="mb-4">
+                <span className="text-5xl font-extrabold text-gray-900 tracking-wide" style={{ letterSpacing: '0.02em', fontWeight: 800 }}>
+                  Strategic OKR Management
+                </span>
+                <span className="block text-3xl text-blue-600 mt-2 font-bold">For Growing Organizations</span>
               </h1>
               <p className="text-lg text-gray-600 leading-relaxed">
                 An exclusive tool for Table Rock clients to implement and manage Objectives and Key Results. 
@@ -105,7 +107,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="border-t pt-6">
+            <div className="border-t border-gray-300 pt-6">
               <p className="text-sm text-gray-500">
                 This platform is exclusively available to organizations engaged with Table Rock Business Advisory Services. 
                 Access is by invitation only.
@@ -133,7 +135,7 @@ export default function Home() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="you@company.com"
                   required
                 />
