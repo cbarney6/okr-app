@@ -75,6 +75,7 @@ export default function RegisterPage() {
         email: email,
         options: {
           shouldCreateUser: true,
+          emailRedirectTo: undefined, // Force OTP instead of magic link
           data: {
             organization_name: isNewOrg ? organizationName : undefined,
             organization_id: !isNewOrg ? organizationId : undefined,

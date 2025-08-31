@@ -140,7 +140,8 @@ function VerifyOTPContent() {
       const { error } = await supabase.auth.signInWithOtp({
         email: email,
         options: {
-          shouldCreateUser: true
+          shouldCreateUser: true,
+          emailRedirectTo: undefined // Force OTP instead of magic link
         }
       })
       

@@ -25,7 +25,8 @@ export default function Home() {
       const { error } = await supabase.auth.signInWithOtp({
         email: email,
         options: {
-          shouldCreateUser: false // Don't create new users on sign in
+          shouldCreateUser: false, // Don't create new users on sign in
+          emailRedirectTo: undefined // Force OTP instead of magic link
         }
       })
       
