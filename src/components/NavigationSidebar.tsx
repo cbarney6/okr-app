@@ -13,6 +13,7 @@ interface NavigationSidebarProps {
 export default function NavigationSidebar({ currentPage = 'dashboard' }: NavigationSidebarProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const [menuTimer, setMenuTimer] = useState<NodeJS.Timeout | null>(null)
   const router = useRouter()
   
   const supabase = createBrowserClient(
@@ -23,6 +24,18 @@ export default function NavigationSidebar({ currentPage = 'dashboard' }: Navigat
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     router.push('/')
+  }
+
+  const handleMouseEnter = () => {
+    if (menuTimer) clearTimeout(menuTimer)
+    setShowUserMenu(true)
+  }
+
+  const handleMouseLeave = () => {
+    const timer = setTimeout(() => {
+      setShowUserMenu(false)
+    }, 200)
+    setMenuTimer(timer)
   }
 
   const menuItems = [
@@ -100,17 +113,25 @@ export default function NavigationSidebar({ currentPage = 'dashboard' }: Navigat
       {/* User Profile Section - Fixed at bottom */}
       <div 
         className="border-t border-gray-200 p-3 relative"
-        onMouseEnter={() => setShowUserMenu(true)}
-        onMouseLeave={() => setShowUserMenu(false)}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        onMouseMove={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center space-x-3 relative">
+        <div 
+          className="flex items-center space-x-3 relative select-none"
+          role="button"
+          aria-label="User menu"
+          tabIndex={0}
+        >
           <div 
             className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-white font-medium text-sm flex-shrink-0 cursor-pointer hover:bg-yellow-600 transition-colors"
             title=""
+            aria-label="User profile"
+            style={{ userSelect: 'none' }}
           >
             CB
           </div>
-          <div className={`transition-all duration-300 ${
+          <div className={`transition-all duration-300 select-none ${
             isExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0 overflow-hidden'
           }`}>
             <p className="text-sm font-medium text-gray-900">Chris Barney</p>
@@ -118,28 +139,36 @@ export default function NavigationSidebar({ currentPage = 'dashboard' }: Navigat
           </div>
         </div>
         
-        {/* Hover Menu - positioned outside the flex container */}
-        {showUserMenu && (
-          <div 
-            className="absolute bottom-full left-0 mb-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1"
-            style={{ zIndex: 9999 }}
+        {/* Hover Menu with improved positioning and interaction */}
+        <div 
+          className={`absolute bottom-full left-0 mb-2 w-48 bg-white border border-gray-200 rounded-lg shadow-xl py-1 transition-all duration-200 ${
+            showUserMenu ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible translate-y-2'
+          }`}
+          style={{ zIndex: 99999 }}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+        >
+          <button
+            onClick={() => {
+              setShowUserMenu(false)
+              router.push('/profile')
+            }}
+            className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left"
           >
-            <button
-              onClick={() => router.push('/profile')}
-              className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left"
-            >
-              <User className="h-4 w-4 mr-3" />
-              Edit Profile
-            </button>
-            <button
-              onClick={handleSignOut}
-              className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left"
-            >
-              <LogOut className="h-4 w-4 mr-3" />
-              Sign Out
-            </button>
-          </div>
-        )}
+            <User className="h-4 w-4 mr-3 flex-shrink-0" />
+            <span>Edit Profile</span>
+          </button>
+          <button
+            onClick={() => {
+              setShowUserMenu(false)
+              handleSignOut()
+            }}
+            className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left"
+          >
+            <LogOut className="h-4 w-4 mr-3 flex-shrink-0" />
+            <span>Sign Out</span>
+          </button>
+        </div>
       </div>
     </aside>
   )
