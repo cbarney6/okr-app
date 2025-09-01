@@ -3,13 +3,14 @@
 import { useState, useEffect, Suspense } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Mail, ArrowRight, RefreshCw, CheckCircle } from 'lucide-react'
+import { Mail, ArrowRight, RefreshCw } from 'lucide-react'
 
 function VerifyOTPContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   
   const email = searchParams.get('email') || ''
+  const fullName = searchParams.get('fullName') || ''
   const isNewOrg = searchParams.get('newOrg') === 'true'
   const orgName = searchParams.get('orgName') || ''
   const orgId = searchParams.get('orgId') || ''
@@ -17,8 +18,9 @@ function VerifyOTPContent() {
   const [otp, setOtp] = useState(['', '', '', '', '', ''])
   const [isLoading, setIsLoading] = useState(false)
   const [message, setMessage] = useState('')
-  const [timeLeft, setTimeLeft] = useState(60)
+  const [timeLeft, setTimeLeft] = useState(300) // 5 minutes = 300 seconds
   const [canResend, setCanResend] = useState(false)
+  const [isVerified, setIsVerified] = useState(false)
   
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -67,6 +69,11 @@ function VerifyOTPContent() {
       return
     }
     
+    // Prevent double submission
+    if (isVerified || isLoading) {
+      return
+    }
+    
     setIsLoading(true)
     setMessage('')
     
@@ -77,56 +84,189 @@ function VerifyOTPContent() {
         type: 'email'
       })
       
-      if (error) throw error
+      if (error) {
+        // Handle specific auth errors with user-friendly messages
+        if (error.message.includes('expired')) {
+          setMessage('Verification code has expired. Please request a new one.')
+        } else if (error.message.includes('invalid')) {
+          setMessage('Invalid verification code. Please check and try again.')
+        } else {
+          setMessage(error.message)
+        }
+        throw error
+      }
       
       if (data.session) {
+        setIsVerified(true)
+        
+        // Ensure the session is properly set in the client
+        await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token
+        })
+        
+        // Verify session is properly established by checking current user
+        const waitForSessionEstablishment = async (): Promise<boolean> => {
+          let retries = 0
+          const maxRetries = 20 // Allow up to ~2 seconds total wait time
+          
+          while (retries < maxRetries) {
+            const { data: currentUser, error: userError } = await supabase.auth.getUser()
+            
+            if (currentUser?.user && !userError && data.session && currentUser.user.id === data.session.user.id) {
+              return true
+            }
+            
+            retries++
+            // Exponential backoff: 25ms, 50ms, 100ms, 150ms, etc.
+            const delay = Math.min(25 * Math.pow(1.5, retries), 200)
+            await new Promise(resolve => setTimeout(resolve, delay))
+          }
+          
+          return false
+        }
+        
+        const sessionEstablished = await waitForSessionEstablishment()
+        if (!sessionEstablished) {
+          console.error('Session establishment timeout')
+          setMessage('Session setup is taking longer than expected. Please try signing in again.')
+          return
+        }
+        
         // If new org, create the organization
         if (isNewOrg && orgName) {
-          const { data: org, error: orgError } = await supabase
-            .from('organizations')
-            .insert({
-              name: orgName,
-              created_by: data.session.user.id
-            })
-            .select()
-            .single()
-          
-          if (orgError) throw orgError
-          
-          // Update user profile with org and admin role
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .update({
-              organization_id: org.id,
-              roles: ['admin']
-            })
-            .eq('id', data.session.user.id)
-          
-          if (profileError) throw profileError
-          
-          router.push('/onboarding')
+          try {
+            // Generate slug from organization name
+            const generateSlug = (name: string): string => {
+              return name
+                .toLowerCase()
+                .trim()
+                .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
+                .replace(/\s+/g, '-') // Replace spaces with hyphens
+                .replace(/-+/g, '-') // Replace multiple hyphens with single
+                .replace(/^-|-$/g, '') // Remove leading/trailing hyphens
+                || 'organization' // Fallback if name becomes empty
+            }
+            
+            // Generate unique org code using database function
+            const { data: codeResult, error: codeError } = await supabase
+              .rpc('generate_unique_org_code')
+            
+            if (codeError) {
+              console.error('Failed to generate org code:', codeError)
+              setMessage('Failed to generate organization code. Please try again.')
+              return
+            }
+            
+            const orgSlug = generateSlug(orgName)
+            const orgCode = codeResult as string
+            
+            const { data: org, error: orgError } = await supabase
+              .from('organizations')
+              .insert({
+                name: orgName,
+                slug: orgSlug,
+                org_code: orgCode,
+                created_by: data.session.user.id
+              })
+              .select()
+              .single()
+            
+            if (orgError) {
+              console.error('Organization creation error:', orgError)
+              setMessage(`Failed to create organization: ${orgError.message}. Please try again or contact support.`)
+              return
+            }
+            
+            // Check if profile exists, then insert or update
+            const { data: existingProfile } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('id', data.session.user.id)
+              .single()
+            
+            if (existingProfile) {
+              // Profile already exists - this user is not new!
+              setMessage('An account already exists with this email. Please sign in instead.')
+              setTimeout(() => router.push('/'), 3000)
+              return
+            } else {
+              // Profile doesn't exist, create it
+              const { error: profileError } = await supabase
+                .from('profiles')
+                .insert({
+                  id: data.session.user.id,
+                  email: email,
+                  full_name: fullName,
+                  organization_id: org.id,
+                  roles: ['admin']
+                })
+              
+              if (profileError) {
+                console.error('Profile creation error:', profileError)
+                setMessage(`Failed to create profile: ${profileError.message}. Please contact support.`)
+                return
+              }
+            }
+            
+            router.push('/onboarding')
+          } catch (dbError) {
+            console.error('Database operation failed:', dbError)
+            setMessage('Account created but organization setup failed. Please contact support.')
+          }
         } else if (!isNewOrg && orgId) {
-          // Join existing org
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .update({
-              organization_id: orgId,
-              roles: ['user']
-            })
-            .eq('id', data.session.user.id)
-          
-          if (profileError) throw profileError
-          
-          router.push('/dashboard')
+          try {
+            // First check if profile exists
+            const { data: existingProfile } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('id', data.session.user.id)
+              .single()
+            
+            if (existingProfile) {
+              // Profile already exists - this user is not new!
+              setMessage('An account already exists with this email. Please sign in instead.')
+              setTimeout(() => router.push('/'), 3000)
+              return
+            } else {
+              // Profile doesn't exist, create it
+              const { error: profileError } = await supabase
+                .from('profiles')
+                .insert({
+                  id: data.session.user.id,
+                  email: email,
+                  full_name: fullName,
+                  organization_id: orgId,
+                  roles: ['user']
+                })
+              
+              if (profileError) {
+                console.error('Profile creation error:', profileError)
+                setMessage(`Failed to create profile: ${profileError.message}. Please contact support.`)
+                return
+              }
+            }
+            
+            router.push('/dashboard')
+          } catch (dbError) {
+            console.error('Database operation failed:', dbError)
+            setMessage('Account created but failed to join organization. Please contact support.')
+          }
         } else {
-          // Regular sign in
+          // Regular sign in - just redirect
           router.push('/dashboard')
         }
+      } else {
+        setMessage('Verification successful but no session created. Please try signing in again.')
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Invalid verification code')
-      setOtp(['', '', '', '', '', ''])
-      document.getElementById('otp-0')?.focus()
+      console.error('OTP verification error:', error)
+      // Only reset if it was an auth error (not a database error)
+      if (!isVerified) {
+        setOtp(['', '', '', '', '', ''])
+        document.getElementById('otp-0')?.focus()
+      }
+      // Message already set above for auth errors
     } finally {
       setIsLoading(false)
     }
@@ -148,7 +288,7 @@ function VerifyOTPContent() {
       if (error) throw error
       
       setMessage('New code sent! Check your email.')
-      setTimeLeft(60)
+      setTimeLeft(300) // Reset to 5 minutes
       setCanResend(false)
       setOtp(['', '', '', '', '', ''])
       document.getElementById('otp-0')?.focus()
@@ -207,7 +347,7 @@ function VerifyOTPContent() {
                     onChange={(e) => handleOtpChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(index, e)}
                     className="w-12 h-12 text-center text-xl font-bold text-gray-900 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    disabled={isLoading}
+                    disabled={isLoading || isVerified}
                   />
                 ))}
               </div>
@@ -215,10 +355,10 @@ function VerifyOTPContent() {
 
             <button
               onClick={() => verifyOTP()}
-              disabled={otp.some(d => !d) || isLoading}
+              disabled={otp.some(d => !d) || isLoading || isVerified}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center"
             >
-              {isLoading ? 'Verifying...' : (
+              {isVerified ? 'Redirecting...' : isLoading ? 'Verifying...' : (
                 <>
                   Verify Code
                   <ArrowRight className="ml-2 h-4 w-4" />
@@ -226,20 +366,29 @@ function VerifyOTPContent() {
               )}
             </button>
 
-            {/* Resend */}
+            {/* Countdown and Resend */}
             <div className="text-center">
               {canResend ? (
-                <button
-                  onClick={resendOTP}
-                  disabled={isLoading}
-                  className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center justify-center mx-auto"
-                >
-                  <RefreshCw className="h-4 w-4 mr-1" />
-                  Resend Code
-                </button>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-red-600">
+                    Code expired - New code required
+                  </p>
+                  <button
+                    onClick={resendOTP}
+                    disabled={isLoading}
+                    className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center justify-center mx-auto"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                    Resend Code
+                  </button>
+                </div>
               ) : (
-                <p className="text-sm text-gray-500">
-                  Resend code in {timeLeft} seconds
+                <p className={`text-sm font-medium ${
+                  timeLeft > 120 ? 'text-green-600' : 
+                  timeLeft > 30 ? 'text-orange-600' : 
+                  'text-red-600'
+                }`}>
+                  Expires in {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
                 </p>
               )}
             </div>

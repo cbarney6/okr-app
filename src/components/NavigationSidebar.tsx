@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Home, Target, Calendar, Settings, Users, BarChart3, LogOut, User } from 'lucide-react'
 import Link from 'next/link'
 import { createBrowserClient } from '@supabase/ssr'
@@ -14,12 +14,57 @@ export default function NavigationSidebar({ currentPage = 'dashboard' }: Navigat
   const [isExpanded, setIsExpanded] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [menuTimer, setMenuTimer] = useState<NodeJS.Timeout | null>(null)
+  const [userProfile, setUserProfile] = useState<{
+    full_name: string
+    email: string
+    initials: string
+  } | null>(null)
   const router = useRouter()
   
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
+
+  // Load user profile data
+  useEffect(() => {
+    async function loadUserProfile() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, email')
+            .eq('id', user.id)
+            .single()
+          
+          if (profile) {
+            const names = profile.full_name?.split(' ') || ['User']
+            const initials = names.length > 1 
+              ? `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase()
+              : names[0].substring(0, 2).toUpperCase()
+            
+            console.log('NavigationSidebar - Loading user profile:', {
+              userId: user.id,
+              userEmail: user.email,
+              profileEmail: profile.email,
+              fullName: profile.full_name
+            })
+            
+            setUserProfile({
+              full_name: profile.full_name || 'User',
+              email: profile.email || user.email || '',
+              initials
+            })
+          }
+        }
+      } catch (error) {
+        console.error('Error loading user profile:', error)
+      }
+    }
+
+    loadUserProfile()
+  }, [supabase])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -129,13 +174,13 @@ export default function NavigationSidebar({ currentPage = 'dashboard' }: Navigat
             aria-label="User profile"
             style={{ userSelect: 'none' }}
           >
-            CB
+            {userProfile?.initials || 'CB'}
           </div>
           <div className={`transition-all duration-300 select-none ${
             isExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0 overflow-hidden'
           }`}>
-            <p className="text-sm font-medium text-gray-900">Chris Barney</p>
-            <p className="text-xs text-gray-500">cbarney6@gmail.com</p>
+            <p className="text-sm font-medium text-gray-900">{userProfile?.full_name || 'Loading...'}</p>
+            <p className="text-xs text-gray-500">{userProfile?.email || 'Loading...'}</p>
           </div>
         </div>
         
