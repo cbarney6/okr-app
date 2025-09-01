@@ -44,11 +44,12 @@ export default function NavigationSidebar({ currentPage = 'dashboard' }: Navigat
               ? `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase()
               : names[0].substring(0, 2).toUpperCase()
             
-            console.log('NavigationSidebar - Loading user profile:', {
+            console.log('[v2] NavigationSidebar - Loading user profile:', {
               userId: user.id,
               userEmail: user.email,
               profileEmail: profile.email,
-              fullName: profile.full_name
+              fullName: profile.full_name,
+              timestamp: new Date().toISOString()
             })
             
             setUserProfile({
@@ -180,7 +181,7 @@ export default function NavigationSidebar({ currentPage = 'dashboard' }: Navigat
             isExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0 overflow-hidden'
           }`}>
             <p className="text-sm font-medium text-gray-900">{userProfile?.full_name || 'Loading...'}</p>
-            <p className="text-xs text-gray-500">{userProfile?.email || 'Loading...'}</p>
+            <p className="text-xs text-gray-500">{userProfile?.email || 'Loading email...'}</p>
           </div>
         </div>
         
