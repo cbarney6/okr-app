@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Home, Target, Calendar, Settings, Users, BarChart3, User, LogOut } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
@@ -15,6 +15,11 @@ export default function AuthenticatedLayout({ children, pageTitle }: Authenticat
   const [sidebarExpanded, setSidebarExpanded] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [menuTimer, setMenuTimer] = useState<NodeJS.Timeout | null>(null)
+  const [userProfile, setUserProfile] = useState<{
+    full_name: string
+    email: string
+    initials: string
+  } | null>(null)
   const pathname = usePathname()
   const router = useRouter()
   
@@ -22,6 +27,46 @@ export default function AuthenticatedLayout({ children, pageTitle }: Authenticat
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
+
+  // Load user profile data
+  useEffect(() => {
+    async function loadUserProfile() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, email')
+            .eq('id', user.id)
+            .single()
+          
+          if (profile) {
+            const names = profile.full_name?.split(' ') || ['User']
+            const initials = names.length > 1 
+              ? `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase()
+              : names[0].substring(0, 2).toUpperCase()
+            
+            console.log('[AuthenticatedLayout] Loading user profile:', {
+              userId: user.id,
+              userEmail: user.email,
+              profileEmail: profile.email,
+              fullName: profile.full_name
+            })
+            
+            setUserProfile({
+              full_name: profile.full_name || 'User',
+              email: profile.email || user.email || '',
+              initials
+            })
+          }
+        }
+      } catch (error) {
+        console.error('Error loading user profile:', error)
+      }
+    }
+
+    loadUserProfile()
+  }, [supabase])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -116,12 +161,12 @@ export default function AuthenticatedLayout({ children, pageTitle }: Authenticat
                 aria-label="User profile"
                 style={{ userSelect: 'none' }}
               >
-                CB
+                {userProfile?.initials || 'CB'}
               </div>
               {sidebarExpanded && (
                 <div className="ml-3 min-w-0 select-none">
-                  <div className="text-gray-900 font-medium whitespace-nowrap">Chris Barney</div>
-                  <div className="text-xs text-gray-500 truncate">cbarney6@gmail.com</div>
+                  <div className="text-gray-900 font-medium whitespace-nowrap">{userProfile?.full_name || 'Loading...'}</div>
+                  <div className="text-xs text-gray-500 truncate">{userProfile?.email || 'Loading email...'}</div>
                 </div>
               )}
             </div>
