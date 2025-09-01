@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# deprecated/unused components (kept for reference)
+src/components/NavigationSidebar.tsx
