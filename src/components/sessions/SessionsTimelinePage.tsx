@@ -677,14 +677,17 @@ export default function SessionsTimelinePage() {
 
   const handleStatusUpdate = async (sessionId: string, newStatus: 'open' | 'in_progress' | 'archived') => {
     try {
-      const { error } = await supabase
-        .from('sessions')
-        .update({ status: newStatus })
-        .eq('id', sessionId)
+      const response = await fetch(`/api/sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      })
 
-      if (error) {
-        console.error('Session update error:', error)
-        throw error
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update session')
       }
 
       // Update local state
@@ -708,12 +711,14 @@ export default function SessionsTimelinePage() {
     if (!confirm('Are you sure you want to delete this session?')) return
 
     try {
-      const { error } = await supabase
-        .from('sessions')
-        .delete()
-        .eq('id', id)
+      const response = await fetch(`/api/sessions/${id}`, {
+        method: 'DELETE',
+      })
 
-      if (error) throw error
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to delete session')
+      }
       
       setSessions(prev => prev.filter(session => session.id !== id))
     } catch (error) {

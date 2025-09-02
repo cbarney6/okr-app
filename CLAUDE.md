@@ -86,6 +86,77 @@ Two separate client configurations:
 - 🔲 Check-ins and progress tracking (planned)
 - 🔲 Reporting and analytics (planned)
 
+## OKR Implementation Requirements
+
+### OKR Page Layout
+- **Table format**: OKRs column, Owner, Confidence, Progress, Tags, Description
+- **Click interaction**: Clicking any Objective/Key Result opens detail window
+- **Filters**: Session filter (default: All Sessions), Objective Owner filter (default: none)
+- **Default view**: Show all OKRs in organization, filtered by selected criteria
+
+### Detail Windows
+#### Objective Details
+- **Fields**: Session, Owner, OKR design score, Parent, Description, Tags
+- **Progress section**: Shows associated Key Results with progress bars
+- **Actions menu (3 dots)**: Edit, Move, Add Key Result, Add Child Objective, Delete
+
+#### Key Result Details  
+- **Fields**: Owner, Parent, Description, Initial/Actual/Target values, progress chart
+- **Weekly updates**: Update button opens modal with Current value, New value, Confidence, Note, Date
+- **Actions menu (3 dots)**: Edit, Move, Update, Delete
+- **Update history**: Shows timestamped progress updates on bottom right
+
+### CRUD Operations
+- **Create**: Existing functionality for Objectives and Key Results
+- **Read**: Detail windows with full information display
+- **Update**: Edit modals pre-populated with current values, weekly update system for Key Results
+- **Delete**: Confirmation dialogs before deletion
+- **Move**: Session selection first, then available parent selection (Objectives or Key Results)
+
+### Parent-Child Relationships
+- **Hierarchical dropdown**: Shows Sessions > Objectives > Key Results structure
+- **Parent options**: Objectives can parent other Objectives or Key Results within same session
+- **Child creation**: Pre-populates Session, Owner, Parent but allows changes
+
+### Required API Endpoints
+- `/api/objectives` - CRUD operations for objectives
+- `/api/key-results` - CRUD operations for key results  
+- `/api/key-results/[id]/updates` - Weekly progress updates (check-ins)
+
+### Implementation Plan (5 Groups)
+#### Group 1: API Foundation
+- Create `/api/objectives` endpoint (GET, POST, PUT, DELETE)
+- Create `/api/key-results` endpoint (GET, POST, PUT, DELETE) 
+- Create `/api/key-results/[id]/updates` endpoint for weekly check-ins
+- Ensure proper RLS enforcement and organization-based filtering
+
+#### Group 2: Basic Detail Views
+- Create `ObjectiveDetailModal` component (read-only)
+- Create `KeyResultDetailModal` component (read-only)
+- Update OKRs page to make table rows clickable
+- Fetch and display complete objective/key result data
+
+#### Group 3: Edit Functionality
+- Add edit mode toggle to detail modals
+- Pre-populate edit forms with current values
+- Implement save functionality using API endpoints
+- Handle parent selection within same session
+
+#### Group 4: Advanced CRUD Operations
+- Implement delete with confirmation dialogs
+- Create move functionality (Key Results to different Objectives)
+- Build weekly update modal for Key Results progress
+- Add actions menu (3-dots) with all operations
+
+#### Group 5: Enhanced UI & Filters
+- Add session filter dropdown (default: All Sessions)
+- Add objective owner filter dropdown
+- Implement table layout matching mockups
+- Improve parent selection with hierarchical display
+
+**Dependencies**: Sequential execution, each group enables the next
+**Rollback Strategy**: Self-contained groups, additive changes, easily reversible
+
 ## Important Context
 
 ### User Preferences
@@ -105,10 +176,35 @@ Two separate client configurations:
 - If OTP emails show magic links instead of codes: Check Supabase Email Templates, ensure using `{{ .Token }}` not `{{ .ConfirmationURL }}`
 - Build warnings about unused variables are acceptable if build succeeds
 - Dashboard metric cards use hover tooltips to prevent text overflow
+- PGRST116 errors (406 status) are expected when checking if email exists - this means "no rows found" and is handled correctly in code
+- NavigationSidebar.tsx is deprecated - use AuthenticatedLayout.tsx for sidebar functionality
 
 ### Testing Accounts
 - `cbarney6@gmail.com` - Existing test account with session data
 - Use OTP flow to sign in (no passwords in system anymore)
+
+### Authentication Flow Implementation Details
+
+#### Registration Flow (`/src/app/register/page.tsx`)
+- **Email Validation**: Real-time validation with proper format checking (`/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/`)
+- **Debouncing**: 800ms delay before checking if email exists in database
+- **Organization Code**: 6-digit numeric code, only enabled after email validation succeeds
+- **Error Handling**: PGRST116 errors (`checkError.code === 'PGRST116'`) indicate email is available
+- **Full Name**: Mandatory field collected during registration
+- **Progressive Form**: Organization code field disabled until email validated as available
+
+#### OTP Verification (`/src/app/verify-otp/page.tsx`)
+- **Token Timeout**: 5 minutes (300 seconds) on frontend, 1 hour (3600 seconds) in Supabase
+- **Double Submit Prevention**: `isVerified` state prevents multiple OTP submissions
+- **Session Establishment**: Exponential backoff verification with up to 20 retries
+- **Organization Creation**: Generates unique 6-digit org_code using database function
+- **Profile Creation**: Check-then-insert logic to handle existing profiles correctly
+
+#### User Profile Display (`/src/components/layout/AuthenticatedLayout.tsx`)
+- **Dynamic Loading**: User profile loaded via useEffect on component mount
+- **Data Priority**: Uses `profile.email` first, falls back to `user.email`
+- **Initials Generation**: Automatically generates from full name (first + last letter)
+- **Loading States**: Shows "Loading email..." while fetching data
 
 ### CSS Design System Standards
 
